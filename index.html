@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Landed Cost Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      padding: 20px;
+      max-width: 600px;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="number"] {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: #e9ecef;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Landed Cost Calculator</h1>
+  <div class="form-group">
+    <label for="weight">Weight of Shipment (kg):</label>
+    <input type="number" id="weight" placeholder="Enter weight in kg" step="0.01" required>
+  </div>
+  <div class="form-group">
+    <label for="freightCost">Freight Cost per Kilogram (USD/kg):</label>
+    <input type="number" id="freightCost" placeholder="Enter freight cost" step="0.01" required>
+  </div>
+  <div class="form-group">
+    <label for="transactionFee">Transaction Fee Factor (e.g., 1.05 for 5%):</label>
+    <input type="number" id="transactionFee" placeholder="Enter transaction fee factor" step="0.01" required>
+  </div>
+  <div class="form-group">
+    <label for="exchangeRate">Exchange Rate (USD to Local Currency):</label>
+    <input type="number" id="exchangeRate" placeholder="Enter exchange rate" step="0.01" required>
+  </div>
+  <div class="form-group">
+    <label for="localTransport">Local Transport Cost (Local Currency):</label>
+    <input type="number" id="localTransport" placeholder="Enter local transport cost" step="0.01" required>
+  </div>
+  <div class="form-group">
+    <label for="buyingPrice">Buying Price in USD:</label>
+    <input type="number" id="buyingPrice" placeholder="Enter buying price" step="0.01" required>
+  </div>
+  <button onclick="calculateLandedCost()">Calculate</button>
+  <div class="result" id="result"></div>
+
+  <script>
+    function calculateLandedCost() {
+      // Get input values
+      const weight = parseFloat(document.getElementById('weight').value);
+      const freightCost = parseFloat(document.getElementById('freightCost').value);
+      const transactionFee = parseFloat(document.getElementById('transactionFee').value);
+      const exchangeRate = parseFloat(document.getElementById('exchangeRate').value);
+      const localTransport = parseFloat(document.getElementById('localTransport').value);
+      const buyingPrice = parseFloat(document.getElementById('buyingPrice').value);
+
+      // Validate inputs
+      if (isNaN(weight) || isNaN(freightCost) || isNaN(transactionFee) || isNaN(exchangeRate) || isNaN(localTransport) || isNaN(buyingPrice)) {
+        document.getElementById('result').innerHTML = '<p style="color: red;">Please fill in all fields with valid numbers.</p>';
+        return;
+      }
+
+      // Calculate Landed Cost
+      const landedCost = exchangeRate * ((buyingPrice * transactionFee) + (weight * freightCost)) + localTransport;
+
+      // Calculate Landed Cost Factor
+      const landedCostFactor = landedCost / (buyingPrice * exchangeRate);
+
+      // Display results
+      document.getElementById('result').innerHTML = `
+        <p><strong>Landed Cost:</strong> ${landedCost.toFixed(2)} Local Currency</p>
+        <p><strong>Landed Cost Factor:</strong> ${landedCostFactor.toFixed(4)}</p>
+      `;
+    }
+  </script>
+</body>
+</html>
