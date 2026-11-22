@@ -7,7 +7,7 @@
 param(
     [Parameter(Mandatory = $true)][string[]]$ScadaIp,
     [int]$OpcUaPort = 4840,
-    [int]$ModbusPort = 502,
+    [int]$ModbusPort = 502,   # also used by the PROFINET gateway plugin
     [switch]$NoOpcUa,
     [switch]$NoModbus
 )

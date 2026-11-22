@@ -100,6 +100,21 @@ integrations:
     allow_ips: []                   # e.g. ["192.168.10.20", "192.168.10.0/24"]; empty = any address
     update_seconds: 5
 
+  # PROFINET to a PCS 7 / S7 controller through a Modbus TCP -> PROFINET gateway
+  # (HMS Anybus, Hilscher netTAP, Moxa MGate...). Compact layout that maps 1:1
+  # onto an S7 DB. Generate the STEP 7 UDT/DB source and gateway settings with:
+  #   python -m ems profinet-files
+  - type: profinet_gateway
+    enabled: false
+    host: "0.0.0.0"                 # bind to the NIC that faces the gateway
+    port: 502
+    allow_ips: []                   # the gateway's IP, e.g. ["192.168.10.50"]
+    # meters: [main_incomer, compressor]   # publish only these (default: all, in this order)
+    # gateway_io_bytes: 512         # the gateway's input size; refuses to start if the data won't fit
+    udt_number: 100                 # numbers used in the generated STEP 7 source
+    db_number: 100
+    update_seconds: 2
+
   # Your own plugin (Python file in the plugins/ folder), e.g. the CSV example:
   - type: custom
     enabled: false

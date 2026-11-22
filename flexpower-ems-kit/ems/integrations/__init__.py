@@ -5,8 +5,9 @@ all meters and hands it to each enabled plugin. Plugins only *publish*: none of
 them can change meters, settings or stored data.
 
 Built-in plugin types (configured under `integrations:` in config.yaml):
-    opcua       OPC UA server - PCS 7 OS / WinCC, Ignition, AVEVA, Kepware...
-    modbus_tcp  read-only Modbus TCP server - any SCADA, PLCs, PCS 7 AS
+    opcua             OPC UA server - PCS 7 OS / WinCC, Ignition, AVEVA, Kepware...
+    profinet_gateway  compact Modbus TCP layout for a Modbus TCP -> PROFINET gateway (PCS 7 AS)
+    modbus_tcp        read-only Modbus TCP server - any SCADA, PLCs
 
 Your own plugin: subclass Integration, put the file in the `plugins/` folder
 next to config.yaml, and configure  type: custom, class: "my_file:MyClass".
@@ -70,7 +71,17 @@ class Integration:
 def builtin_types() -> dict[str, type[Integration]]:
     from .modbus_server import ModbusTcpIntegration
     from .opcua_server import OpcUaIntegration
-    return {"opcua": OpcUaIntegration, "modbus_tcp": ModbusTcpIntegration}
+    from .profinet_gateway import ProfinetGatewayIntegration
+    return {"opcua": OpcUaIntegration, "modbus_tcp": ModbusTcpIntegration,
+            "profinet_gateway": ProfinetGatewayIntegration}
+
+
+def profinet_options(cfg: Config) -> dict[str, Any]:
+    """The profinet_gateway block from config.yaml (enabled or not), or defaults."""
+    for opts in cfg.raw.get("integrations") or []:
+        if isinstance(opts, dict) and opts.get("type") == "profinet_gateway":
+            return opts
+    return {"type": "profinet_gateway"}
 
 
 def load_plugin_class(cfg: Config, spec: str) -> type[Integration]:
@@ -94,6 +105,7 @@ class IntegrationManager:
         self.plugins: list[Integration] = []
         self.errors: list[dict[str, Any]] = []
         self._stop = threading.Event()
+        self._publish_lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self.interval = 5.0
         types = builtin_types()
@@ -105,7 +117,7 @@ class IntegrationManager:
                 cls = load_plugin_class(cfg, opts.get("class", "")) if kind == "custom" else types[kind]
                 self.plugins.append(cls(cfg, opts))
             except KeyError:
-                self._fail(i, kind, f"unknown integration type '{kind}' (use opcua, modbus_tcp or custom)")
+                self._fail(i, kind, f"unknown integration type '{kind}' (use opcua, modbus_tcp, profinet_gateway or custom)")
             except Exception as exc:  # noqa: BLE001 - a broken plugin must not stop the EMS
                 self._fail(i, kind, f"could not load: {exc}")
         intervals = [float(p.options.get("update_seconds", 5)) for p in self.plugins]
@@ -176,15 +188,16 @@ class IntegrationManager:
             self._stop.wait(self.interval)
 
     def publish(self, snap: dict[str, Any]) -> None:
-        for p in self.plugins:
-            if not p.running:
-                continue
-            try:
-                p.publish(snap)
-                p.last_publish, p.last_error = int(time.time()), None
-            except Exception as exc:  # noqa: BLE001
-                p.last_error = str(exc)
-                log.warning("integration %s publish failed: %s", p.name, exc)
+        with self._publish_lock:  # plugins never see two publishes at once
+            for p in self.plugins:
+                if not p.running:
+                    continue
+                try:
+                    p.publish(snap)
+                    p.last_publish, p.last_error = int(time.time()), None
+                except Exception as exc:  # noqa: BLE001
+                    p.last_error = str(exc)
+                    log.warning("integration %s publish failed: %s", p.name, exc)
 
     def stop(self) -> None:
         self._stop.set()

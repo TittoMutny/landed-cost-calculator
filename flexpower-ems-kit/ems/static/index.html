@@ -469,6 +469,10 @@ tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
         <div class="card-head"><div><h2>SCADA connections</h2><p>OPC UA / Modbus TCP for PCS 7, WinCC and other SCADA</p></div></div>
         <div id="integrations" style="display:grid;gap:8px"></div>
         <button class="btn" id="tagsBtn" style="margin-top:12px;width:100%"><svg class="i"><use href="#i-down"/></svg>Tag list for SCADA engineers (CSV)</button>
+        <div id="pnFiles" hidden style="display:grid;gap:8px;margin-top:8px">
+          <button class="btn" data-pn="EMS_DB.awl"><svg class="i"><use href="#i-down"/></svg>STEP 7 source: UDT + DB (PROFINET)</button>
+          <button class="btn" data-pn="gateway-settings.txt"><svg class="i"><use href="#i-down"/></svg>Gateway settings (PROFINET)</button>
+        </div>
       </div>
       <div class="card">
         <div class="card-head"><div><h2>Recent sends</h2></div></div>
@@ -991,7 +995,8 @@ async function loadReports() {
   $("schedule").innerHTML = `<span>Email sending</span><span>${CFG.email_enabled ? "Enabled" : "Disabled"}</span>` + row("daily") + row("weekly") + row("monthly");
   try {
     const { integrations } = await api("/api/integrations");
-    const label = { opcua: "OPC UA server", modbus_tcp: "Modbus TCP server" };
+    const label = { opcua: "OPC UA server", modbus_tcp: "Modbus TCP server", profinet_gateway: "PROFINET (via gateway)" };
+    $("pnFiles").hidden = !integrations.some(x => x.type === "profinet_gateway");
     $("integrations").innerHTML = integrations.length ? integrations.map(x => {
       const st = x.error ? "failed" : x.running ? "sent" : "";
       const txt = x.error ? "Error" : x.running ? (x.clients != null ? `Running · ${x.clients} client${x.clients === 1 ? "" : "s"}` : "Running") : "Stopped";
@@ -1015,6 +1020,7 @@ $("sendNow").onclick = async () => {
   catch (e) { toast("Failed: " + e.message); }
 };
 $("tagsBtn").onclick = () => location.href = "/api/scada-tags.csv";
+$$("[data-pn]").forEach(b => b.onclick = () => location.href = `/api/profinet/${b.dataset.pn}`);
 $$("[data-dl]").forEach(b => b.onclick = () => location.href = `/api/export.csv?kind=${b.dataset.dl}&${rangeQuery()}`);
 
 /* ============================== start ============================== */

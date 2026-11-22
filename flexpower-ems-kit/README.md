@@ -226,6 +226,7 @@ Enable them under `integrations:` in `config.yaml` and restart.
 |---|---|---|
 | `opcua` | **PCS 7 OS / WinCC**, WinCC OA, Ignition, AVEVA, Kepware, any OPC UA client | 4840 |
 | `modbus_tcp` | Any SCADA with a Modbus TCP driver; PLCs, including a PCS 7 AS with a Modbus TCP block library | 502 |
+| `profinet_gateway` | **PROFINET** into a PCS 7 AS / S7 controller through a Modbus TCP → PROFINET gateway | 502 |
 | `custom` | Your own Python file in `plugins/` (MQTT, SQL, a historian...). See `plugins/example_csv_export.py` | – |
 
 **Get the tag list** for the SCADA engineer: *Reports → SCADA connections →
@@ -294,6 +295,63 @@ can't act as an OPC UA client, use the Modbus TCP server, or connect a gateway
   The energy counter is also published as a uint32 in 0.1 kWh steps, for full
   precision on large counters.
 
+### PROFINET (PCS 7 AS / S7 controllers)
+
+A Windows PC can't act as a PROFINET IO-Device without special hardware (for
+example a Hilscher cifX or Siemens CP 1616 card and its device kit). The standard,
+supportable route is a small **Modbus TCP → PROFINET gateway** on a DIN rail,
+such as an HMS Anybus Communicator, Hilscher netTAP or a Moxa MGate with PROFINET:
+
+```
+EMS PC ──Modbus TCP──► gateway ──PROFINET IO──► PCS 7 AS (S7-400/410/1500)
+```
+
+The gateway polls the EMS and appears in HW Config / TIA Portal as an ordinary
+PROFINET device (import its GSDML file). The controller then receives the energy
+data as input bytes. It needs no Modbus licence and no extra CP.
+
+```yaml
+  - type: profinet_gateway
+    enabled: true
+    host: "192.168.10.5"            # EMS PC address on the gateway side
+    port: 502                       # use another port (e.g. 503) if modbus_tcp is also enabled
+    allow_ips: ["192.168.10.50"]    # the gateway
+    meters: [main_incomer, compressor, cnc_1]   # optional: only these, in this order
+    gateway_io_bytes: 512           # optional: your gateway's input size
+```
+
+Then generate the engineering files:
+
+```powershell
+.\.venv\Scripts\python.exe -m ems profinet-files
+```
+
+or use *Reports → SCADA connections* in the dashboard. You get:
+
+- **`EMS_DB.awl`**: a STEP 7 / PCS 7 source with a UDT per meter and a DB laid out
+  exactly like the input data. Add it under *Sources*, check the UDT/DB numbers,
+  and compile.
+- **`gateway-settings.txt`**: the Modbus read commands to configure in the gateway
+  (start register, count, target byte) and the byte offset of each meter.
+
+Layout: a 24-byte site block (heartbeat, meters online, total kW, kWh today,
+kWh this month), then 32 bytes per meter (status word, data age, kW, energy
+counter, V, A, power factor, kWh today, kWh this month). Values are S7 `REAL`s
+in S7 byte order, so **switch byte/word swapping OFF in the gateway**.
+
+- Copy the input area into the DB with **SFC 14 `DPRD_DAT`**, which gives a
+  consistent read of more than 4 bytes.
+- Use the heartbeat as a watchdog. If it stops changing, the EMS or the gateway link is down.
+- Status bit 0 means the meter is online and bit 1 means its values are valid.
+  Offline meters report 0.0 rather than NaN, so PLC arithmetic is never disturbed.
+- With 6 meters the data is 216 bytes and fits one Modbus request. Larger sites
+  need several requests (the settings file lists them, never splitting a meter)
+  and a gateway with enough I/O. Use `meters:` to publish only what the controller needs.
+
+The generated files and the register layout are tested, but the route hasn't
+been tried with a physical gateway and PCS 7 yet. Commission it on a test
+controller first.
+
 ### Firewall
 
 Allow only the SCADA station(s) to reach these ports:
@@ -342,7 +400,7 @@ ems/
   scheduler.py   weekly/monthly jobs, data retention
   web.py         dashboard + JSON API + login
   static/        dashboard page (Chart.js bundled, works offline)
-  integrations/  SCADA plugins: OPC UA server, read-only Modbus TCP server, plugin loader
+  integrations/  SCADA plugins: OPC UA, read-only Modbus TCP, PROFINET gateway layout, plugin loader
 plugins/         your own plugins (example: CSV export)
 deploy/windows/  install and service scripts
 tests/           unit tests and a real Modbus TCP round-trip test

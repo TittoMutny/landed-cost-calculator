@@ -7,6 +7,7 @@
     python -m ems hash-password            make a password hash for config.yaml
     python -m ems set-smtp-password        store the email password encrypted (Windows DPAPI)
     python -m ems scada-map                Modbus register map + OPC UA tag list for SCADA/PCS 7
+    python -m ems profinet-files           STEP 7 UDT/DB source + gateway settings (PROFINET via gateway)
 """
 from __future__ import annotations
 
@@ -146,6 +147,23 @@ def cmd_scada_map(args, cfg) -> None:
     print(f"  ... {len(rows)} values in total. Full list written to {out}")
 
 
+def cmd_profinet_files(args, cfg) -> None:
+    """Write the STEP 7 source (UDT + DB) and the gateway settings for the PROFINET gateway route."""
+    from .integrations import profinet_options
+    from .integrations.profinet_gateway import gateway_notes, io_bytes, s7_source, selected_meters
+
+    opts = profinet_options(cfg)
+    out = Path(args.out or cfg.base_dir / "data" / "profinet")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "EMS_DB.awl").write_text(s7_source(cfg, opts), encoding="cp1252", errors="replace")
+    (out / "gateway-settings.txt").write_text(gateway_notes(cfg, opts), encoding="utf-8")
+    n = len(selected_meters(cfg, opts))
+    print(gateway_notes(cfg, opts))
+    print(f"{n} meters, {io_bytes(n)} bytes. Files written to {out}:")
+    print("  EMS_DB.awl           STEP 7 / PCS 7 source: UDT + DB matching the input data")
+    print("  gateway-settings.txt Modbus read commands and byte offsets for the gateway")
+
+
 def cmd_hash_password(args, cfg) -> None:
     from .auth import hash_password
 
@@ -194,6 +212,8 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("set-smtp-password")
     sm = sub.add_parser("scada-map")
     sm.add_argument("--out", help="CSV file to write (default data/scada-tags.csv)")
+    pf = sub.add_parser("profinet-files")
+    pf.add_argument("--out", help="folder to write to (default data/profinet)")
     args = p.parse_args(argv)
 
     if args.cmd == "hash-password":
@@ -205,7 +225,7 @@ def main(argv: list[str] | None = None) -> None:
     setup_logging(cfg.base_dir, args.verbose)
     {"run": cmd_run, "seed-demo": cmd_seed_demo, "test-meter": cmd_test_meter,
      "report": cmd_report, "set-smtp-password": cmd_set_smtp_password,
-     "scada-map": cmd_scada_map}[args.cmd](args, cfg)
+     "scada-map": cmd_scada_map, "profinet-files": cmd_profinet_files}[args.cmd](args, cfg)
 
 
 if __name__ == "__main__":

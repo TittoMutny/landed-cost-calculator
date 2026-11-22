@@ -34,7 +34,7 @@ class CsvExport(Integration):
 
     def publish(self, snapshot):
         stamp = datetime.fromtimestamp(snapshot["ts"], self.cfg.tz).isoformat(timespec="seconds")
-        tmp = self.path.with_suffix(".tmp")
+        tmp = self.path.with_suffix(f".{os.getpid()}.tmp")
         with tmp.open("w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(["timestamp", "meter_id", "name", "online"] + QUANTITIES)

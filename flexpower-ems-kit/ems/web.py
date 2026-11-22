@@ -274,6 +274,24 @@ def create_app(cfg: Config, db: Database, integrations=None) -> FastAPI:
         return Response(tags_csv(cfg), media_type="text/csv",
                         headers={"Content-Disposition": 'attachment; filename="flexpower-scada-tags.csv"'})
 
+    @app.get("/api/profinet/{name}")
+    def profinet_file(name: str, user: dict = Depends(current_user)):
+        from .integrations import profinet_options
+        from .integrations.profinet_gateway import gateway_notes, s7_source
+
+        opts = profinet_options(cfg)
+        try:
+            if name == "EMS_DB.awl":
+                data = s7_source(cfg, opts).encode("cp1252", errors="replace")
+            elif name == "gateway-settings.txt":
+                data = gateway_notes(cfg, opts).encode("utf-8")
+            else:
+                raise HTTPException(404)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return Response(data, media_type="text/plain",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
     @app.get("/api/reports/log")
     def report_log(user: dict = Depends(current_user)):
         return [dict(r) for r in db.recent_reports()]

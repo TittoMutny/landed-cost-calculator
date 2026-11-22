@@ -217,3 +217,72 @@ def test_opcua_sign_encrypt_generates_certificate(tmp_path):
         assert any("Basic256Sha256" in u for u in uris) and not any(u.endswith("#None") for u in uris)
     finally:
         mgr.stop()
+
+
+# ------------------------------------------------------------------ PROFINET gateway layout
+def test_profinet_gateway_layout_and_status(tmp_path):
+    from pymodbus.client import ModbusTcpClient
+    from ems.integrations.profinet_gateway import METER_REGS, SITE_REGS
+
+    port = free_port()
+    cfg, db = make(tmp_path, f"""integrations:
+  - {{type: profinet_gateway, enabled: true, host: 127.0.0.1, port: {port}, meters: [a, main]}}
+""")
+    # make meter "main" look offline: last reading 1 hour ago
+    with db.connect() as con:
+        con.execute("UPDATE meter_state SET last_ok_ts = last_ok_ts - 3600 WHERE meter_id='main'")
+    mgr = IntegrationManager(cfg, db)
+    mgr.start()
+    try:
+        mgr.publish(mgr.build_snapshot())
+        c = ModbusTcpClient("127.0.0.1", port=port)
+        assert c.connect()
+        regs = c.read_holding_registers(0, count=SITE_REGS + 2 * METER_REGS, device_id=1).registers
+        raw = b"".join(r.to_bytes(2, "big") for r in regs)  # exactly what lands in the PLC input area
+        heartbeat, online = struct.unpack(">hh", raw[0:4])
+        assert heartbeat >= 1 and online == 1 and struct.unpack(">h", raw[16:18])[0] == 2
+        # meter 0 = "a" (order from `meters:`), at byte 24
+        status, age = struct.unpack(">Hh", raw[24:28])
+        power, energy, volts = struct.unpack(">fff", raw[28:40])
+        assert status == 0b11 and 0 <= age < 5 and power == pytest.approx(4.0) and energy == pytest.approx(50.0)
+        assert volts == 0.0  # not measured -> 0.0, never NaN
+        # meter 1 = "main", offline: status 0, live values zeroed, today's kWh kept
+        m = 24 + 32
+        status, = struct.unpack(">H", raw[m:m + 2])
+        power, = struct.unpack(">f", raw[m + 4:m + 8])
+        today, = struct.unpack(">f", raw[m + 24:m + 28])
+        assert status == 0 and power == 0.0 and today == pytest.approx(2.5)
+        assert c.write_register(0, 1, device_id=1).isError()
+        c.close()
+    finally:
+        mgr.stop()
+
+
+def test_profinet_read_commands_and_s7_source(tmp_path):
+    from ems.integrations.profinet_gateway import gateway_notes, io_bytes, read_commands, s7_source
+
+    assert read_commands(6) == [(0, 108)]
+    cmds = read_commands(20)  # 12 + 320 registers
+    assert cmds[0] == (0, 124) and all(c <= 125 for _, c in cmds)
+    assert sum(c for _, c in cmds) == 12 + 16 * 20
+    assert all((s - 12) % 16 == 0 for s, _ in cmds[1:])  # never split a meter between commands
+    assert io_bytes(20) == 664
+    cfg, _ = make(tmp_path)
+    src = s7_source(cfg, {"udt_number": 7, "db_number": 42})
+    assert "TYPE UDT 7" in src and "DATA_BLOCK DB 42" in src
+    assert "   a : UDT 7 ;" in src and "(offset 56.0)" in src and "END_DATA_BLOCK" in src
+    notes = gateway_notes(cfg, {"host": "10.0.0.5"})
+    assert "10.0.0.5:502" in notes and "swap: OFF" in notes
+
+
+def test_profinet_gateway_size_check(tmp_path):
+    cfg, db = make(tmp_path, """integrations:
+  - {type: profinet_gateway, enabled: true, host: 127.0.0.1, port: 1, gateway_io_bytes: 64}
+  - {type: profinet_gateway, enabled: true, meters: [nope]}
+""")
+    mgr = IntegrationManager(cfg, db)
+    mgr.start()
+    errs = [s["error"] for s in mgr.status()]
+    mgr.stop()
+    assert any("88 bytes needed" in (e or "") for e in errs)
+    assert any("unknown meter" in (e or "") for e in errs)

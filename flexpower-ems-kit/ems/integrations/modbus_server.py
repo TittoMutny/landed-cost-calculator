@@ -106,8 +106,7 @@ class ModbusTcpIntegration(Integration):
         self.max_clients = int(options.get("max_clients", 16))
         self.idle_timeout = float(options.get("idle_timeout_seconds", 300))
         self.allow = [ipaddress.ip_network(a, strict=False) for a in options.get("allow_ips") or []]
-        size = METER_BASE + METER_STRIDE * max(1, len(cfg.meters))
-        self.table = RegisterTable(size, str(options.get("word_order", "big")).lower())
+        self.table = RegisterTable(self.table_size(), str(options.get("word_order", "big")).lower())
         self.heartbeat = 0
         self.clients = 0
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -115,6 +114,9 @@ class ModbusTcpIntegration(Integration):
         self._thread: threading.Thread | None = None
         self._ready = threading.Event()
         self._start_error: Exception | None = None
+
+    def table_size(self) -> int:
+        return METER_BASE + METER_STRIDE * max(1, len(self.cfg.meters))
 
     def describe(self) -> str:
         return f"modbus://{self.host}:{self.port}"
