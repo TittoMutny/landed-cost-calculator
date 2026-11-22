@@ -139,7 +139,7 @@ def cmd_hash_password(args, cfg) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
-    p = argparse.ArgumentParser(prog="ems", description="Energy Monitor")
+    p = argparse.ArgumentParser(prog="ems", description="Flexpower EMS Kit")
     p.add_argument("-c", "--config", default="config.yaml")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)

@@ -73,7 +73,7 @@ class Config:
 
     @property
     def site_name(self) -> str:
-        return self.section("site").get("name", "Energy Monitor")
+        return self.section("site").get("name", "Flexpower EMS Kit")
 
     @property
     def tz(self) -> ZoneInfo:

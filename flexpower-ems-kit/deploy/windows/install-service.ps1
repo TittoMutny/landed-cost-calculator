@@ -1,9 +1,9 @@
-# Install Energy Monitor as a Windows service using NSSM (https://nssm.cc).
-# Run PowerShell AS ADMINISTRATOR from the energy-monitor folder:
+# Install Flexpower EMS Kit as a Windows service using NSSM (https://nssm.cc).
+# Run PowerShell AS ADMINISTRATOR from the flexpower-ems-kit folder:
 #   powershell -ExecutionPolicy Bypass -File deploy\windows\install-service.ps1 -SmtpPassword "app-password"
 # NSSM: download nssm.exe and put it on PATH or next to this script.
 param(
-    [string]$ServiceName = "EnergyMonitor",
+    [string]$ServiceName = "FlexpowerEMS",
     [string]$SmtpPassword = ""
 )
 $ErrorActionPreference = "Stop"
@@ -17,7 +17,7 @@ if (-not (Test-Path $python)) { throw "Run deploy\windows\install.ps1 first." }
 
 & $nssm install $ServiceName $python "-m ems run"
 & $nssm set $ServiceName AppDirectory $root
-& $nssm set $ServiceName DisplayName "Energy Monitor"
+& $nssm set $ServiceName DisplayName "Flexpower EMS Kit"
 & $nssm set $ServiceName Description "Modbus energy metering, dashboard and email reports"
 & $nssm set $ServiceName Start SERVICE_AUTO_START
 & $nssm set $ServiceName AppExit Default Restart

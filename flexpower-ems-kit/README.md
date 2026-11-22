@@ -1,4 +1,4 @@
-# Energy Monitor
+# Flexpower EMS Kit
 
 A small, self-hosted energy management system for a factory or building. It runs on
 one Windows PC on the plant network and:
@@ -21,7 +21,7 @@ analysis pick it up automatically.
 
 ```
  Energy meters ──RS-485 (RTU)──┐
-                               ├──► Windows PC: Energy Monitor ──► SQLite
+                               ├──► Windows PC: Flexpower EMS Kit ──► SQLite
  Ethernet meters ──Modbus TCP──┘         │  dashboard on localhost:8080
                                          │  email reports via SMTP
                                          ▼
@@ -43,7 +43,7 @@ analysis pick it up automatically.
 ## Quick start (Windows)
 
 1. Install **Python 3.11 or newer** from python.org and tick *Add python.exe to PATH*.
-2. Copy this `energy-monitor` folder to the PC, e.g. `C:\EnergyMonitor`.
+2. Copy this `flexpower-ems-kit` folder to the PC, e.g. `C:\FlexpowerEMS`.
 3. In PowerShell in that folder:
    ```powershell
    powershell -ExecutionPolicy Bypass -File deploy\windows\install.ps1
@@ -138,7 +138,7 @@ Download [NSSM](https://nssm.cc/download), put `nssm.exe` on PATH, then in an
 powershell -ExecutionPolicy Bypass -File deploy\windows\install-service.ps1 -SmtpPassword "your-app-password"
 ```
 
-After changing `config.yaml`: `nssm restart EnergyMonitor`.
+After changing `config.yaml`: `nssm restart FlexpowerEMS`.
 Logs are in `data\ems.log`.
 
 ## Publishing online with Cloudflare
@@ -146,7 +146,7 @@ Logs are in `data\ems.log`.
 You need a domain on Cloudflare (free plan is enough).
 
 1. **Create the tunnel.** Cloudflare dashboard → *Zero Trust* → *Networks* →
-   *Tunnels* → *Create a tunnel* → *Cloudflared*. Name it `energy-monitor`.
+   *Tunnels* → *Create a tunnel* → *Cloudflared*. Name it `flexpower-ems-kit`.
 2. **Install the connector on the PC.** The page shows a Windows command like
    `cloudflared.exe service install <token>`. Run it in an Administrator prompt.
    It installs a service that connects **outbound**, so nothing has to be opened

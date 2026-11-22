@@ -1,5 +1,5 @@
-# Energy Monitor - first-time setup on Windows.
-# Run from the energy-monitor folder in PowerShell:
+# Flexpower EMS Kit - first-time setup on Windows.
+# Run from the flexpower-ems-kit folder in PowerShell:
 #   powershell -ExecutionPolicy Bypass -File deploy\windows\install.ps1
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..\..")

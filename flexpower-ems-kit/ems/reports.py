@@ -154,7 +154,7 @@ def render_html(cfg: Config, s: dict[str, Any], title: str, daily: dict[str, Any
   <table style="width:100%;border-collapse:collapse;font-size:14px">{group_rows}</table>
   {link}
   <p style="color:#999;font-size:12px;margin-top:24px">Full figures are attached as CSV files.
-  Period: {escape(s['period']['start'][:10])} to {escape((datetime.fromisoformat(s['period']['end']) - timedelta(days=1)).date().isoformat())}.</p>
+  Period: {escape(s['period']['start'][:10])} to {escape((datetime.fromisoformat(s['period']['end']) - timedelta(days=1)).date().isoformat())}.<br>Sent by Flexpower EMS Kit.</p>
 </div></body></html>"""
 
 

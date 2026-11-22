@@ -18,7 +18,7 @@ STATIC = Path(__file__).parent / "static"
 
 
 def create_app(cfg: Config, db: Database) -> FastAPI:
-    app = FastAPI(title="Energy Monitor", docs_url=None, redoc_url=None)
+    app = FastAPI(title="Flexpower EMS Kit", docs_url=None, redoc_url=None)
     users = {u["username"]: u for u in (cfg.section("web").get("users") or []) if u.get("username")}
     basic = HTTPBasic(auto_error=False)
 
@@ -32,7 +32,7 @@ def create_app(cfg: Config, db: Database) -> FastAPI:
             if u and ok:
                 return {"username": u["username"], "role": u.get("role", "viewer")}
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Login required",
-                            headers={"WWW-Authenticate": 'Basic realm="Energy Monitor"'})
+                            headers={"WWW-Authenticate": 'Basic realm="Flexpower EMS Kit"'})
 
     def admin(user: dict = Depends(current_user)) -> dict:
         if user["role"] != "admin":
