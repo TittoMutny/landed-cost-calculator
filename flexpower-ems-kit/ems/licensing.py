@@ -114,6 +114,7 @@ class LicenseState:
     max_meters: int | None = None
     features: dict[str, bool] = field(default_factory=dict)
     support: dict[str, str] = field(default_factory=dict)
+    billing: dict[str, Any] | None = None
     expires: int | None = None
     last_check: int | None = None
     last_error: str | None = None
@@ -131,7 +132,8 @@ class LicenseState:
         return {"status": self.status, "usable": self.usable, "reason": self.reason, "customer": self.customer,
                 "plan": self.plan, "paid_until": self.paid_until, "pause_on": self.pause_on,
                 "max_meters": self.max_meters, "features": self.features, "support": self.support,
-                "last_check": self.last_check, "last_error": self.last_error, "key_hint": self.key_hint}
+                "last_check": self.last_check, "last_error": self.last_error, "key_hint": self.key_hint,
+                "billing": self.billing}
 
 
 class LicenseManager:
@@ -185,7 +187,7 @@ class LicenseManager:
             return LicenseState("invalid", str(exc), **common)
         base = dict(customer=p.get("customer", ""), plan=p.get("plan", ""), paid_until=p.get("paid_until"),
                     pause_on=p.get("pause_on"), max_meters=p.get("max_meters"), features=p.get("features") or {},
-                    support=p.get("support") or {}, expires=p.get("exp"), **common)
+                    support=p.get("support") or {}, expires=p.get("exp"), billing=p.get("billing"), **common)
         if p.get("machine") != self.machine:
             return LicenseState("invalid", "This licence was issued for a different PC.", **base)
         if now + CLOCK_TOLERANCE < p.get("iat", 0) or now + CLOCK_TOLERANCE < saved.get("max_seen_iat", 0):
@@ -245,6 +247,36 @@ class LicenseManager:
         key = key.strip().upper()
         code, resp = self._post("/api/v1/activate", key)
         return self._apply(code, resp, key, activating=True)
+
+    # ------------------------------------------------------------- M-Pesa
+    def _post_json(self, path: str, extra: dict[str, Any]) -> dict[str, Any]:
+        if not self.key:
+            raise RuntimeError("No licence activated on this PC")
+        body = json.dumps({"key": self.key, "machine_id": self.machine, **extra}).encode()
+        req = urllib.request.Request(self.server + path, data=body, method="POST",
+                                     headers={"Content-Type": "application/json", "User-Agent": f"FlexpowerEMS/{__version__}"})
+        try:
+            with urllib.request.urlopen(req, timeout=40) as r:
+                return json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            try:
+                detail = json.loads(e.read() or b"{}").get("detail")
+            except ValueError:
+                detail = None
+            raise RuntimeError(detail if isinstance(detail, str) else f"licence server answered HTTP {e.code}") from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"cannot reach the Flexpower licence server: {e.reason}") from e
+
+    def pay(self, phone: str, months: int) -> dict[str, Any]:
+        """Ask the licence server to send an M-Pesa PIN prompt (STK push) to `phone`."""
+        return self._post_json("/api/v1/pay", {"phone": phone, "months": int(months)})
+
+    def pay_status(self, checkout_id: str) -> dict[str, Any]:
+        """pending / completed / failed. On completion the licence is refreshed straight away."""
+        r = self._post_json("/api/v1/pay-status", {"checkout_id": checkout_id})
+        if r.get("status") == "completed":
+            r["license"] = self.check_now().public()
+        return r
 
     def check_now(self) -> LicenseState:
         if not self.key:

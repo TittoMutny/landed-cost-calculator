@@ -268,6 +268,19 @@ tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
 .lock form { display: grid; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
 .lock input { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-family: Consolas, ui-monospace, monospace; letter-spacing: .03em; }
 .lock .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.pay { display: grid; gap: 10px; margin-top: 14px; padding: 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); }
+.pay-head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.mpesa-tag { font-size: 11px; font-weight: 800; letter-spacing: .04em; padding: 2px 7px; border-radius: 6px; background: #00a651; color: #fff; }
+.pay label { display: grid; gap: 4px; font-size: 12px; color: var(--text-secondary); }
+.pay select, .pay input { padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); font-family: inherit; letter-spacing: normal; }
+.pay .msg { font-size: 13px; min-height: 1.2em; }
+.pay .hint { display: block; line-height: 1.45; }
+.pay .msg.ok { color: var(--good-text); } .pay .msg.bad { color: var(--critical-text); }
+.spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg) } }
+.modal-scrim { position: fixed; inset: 0; z-index: 85; display: grid; place-items: center; padding: 16px; background: rgba(10,10,8,.4); }
+.modal-scrim .box { width: min(440px, 100%); background: var(--surface-1); border-radius: 18px; padding: 22px; box-shadow: var(--shadow-lg); }
+.modal-scrim h2 { margin: 0 0 4px; font-size: 18px; }
 
 @media (max-width: 1180px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .c8, .c7, .c5, .c4 { grid-column: span 12; } }
 @media (max-width: 760px) {
@@ -524,6 +537,7 @@ tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
     <h2 id="lockTitle">Subscription paused</h2>
     <p id="lockText"></p>
     <div class="reason" id="lockReason"></div>
+    <div id="lockPay"></div>
     <div class="contact" id="lockContact"></div>
     <form id="lockForm" hidden>
       <label for="lockKey" class="hint" style="font-size:12px">Licence key from Flexpower</label>
@@ -1088,7 +1102,70 @@ function showLock(lic) {
   $("lockActivate").hidden = $("lockKey").hidden;
   $("lockNote").textContent = lic.last_error ? `Last check failed: ${lic.last_error}` :
     lic.last_check ? `Last checked ${new Date(lic.last_check * 1000).toLocaleString()}` : "";
+  renderPay($("lockPay"), lic.status === "paused" ? lic : null);
   $("lock").hidden = false;
+}
+
+/* ---------- M-Pesa ---------- */
+function renderPay(el, lic) {
+  const b = lic && lic.billing;
+  if (!b || (!b.mpesa && !b.paybill) || !b.price_month) { el.innerHTML = ""; return; }
+  const cur = b.currency || "KES", credit = b.credit || 0;
+  const opts = [1, 3, 6, 12].map(m => { const amt = Math.max(1, Math.ceil(m * b.price_month - credit));
+    return `<option value="${m}">${m} month${m > 1 ? "s" : ""}: ${esc(cur)} ${nf(amt)}</option>`; }).join("");
+  const paybill = b.paybill ? `<span class="hint">Or from the M-Pesa menu: <b>Lipa na M-Pesa → Paybill ${esc(b.paybill)}</b>, account number <b>${esc(b.account_no)}</b>. Access returns automatically within a few minutes.</span>` : "";
+  el.innerHTML = `<div class="pay">
+    <div class="pay-head"><span class="mpesa-tag">M-PESA</span>Renew now</div>
+    ${b.mpesa ? `<label>Period<select data-p="months">${opts}</select></label>
+    <label>Safaricom number<input data-p="phone" inputmode="tel" autocomplete="tel" placeholder="0712 345 678"></label>
+    <button class="btn primary" data-p="go" type="button">Send payment request to my phone</button>
+    <div class="msg" data-p="msg" role="status"></div>` : ""}
+    ${credit ? `<span class="hint">Includes your credit of ${esc(cur)} ${nf(credit)}.</span>` : ""}${paybill}</div>`;
+  const q = (k) => el.querySelector(`[data-p="${k}"]`);
+  if (!b.mpesa) return;
+  try { q("phone").value = store.get("ems.mpesaPhone") || ""; } catch {}
+  q("go").onclick = () => startPayment(q);
+}
+async function startPayment(q) {
+  const msg = q("msg"), go = q("go"), phone = q("phone").value.trim(), months = +q("months").value;
+  const say = (html, cls = "") => { msg.className = "msg " + cls; msg.innerHTML = html; };
+  if (!phone) { say("Enter the Safaricom number that will pay.", "bad"); q("phone").focus(); return; }
+  go.disabled = true; say(`<span class="spin"></span>Sending request…`);
+  let r;
+  try { r = await post("/api/license/pay", { phone, months }); store.set("ems.mpesaPhone", phone); }
+  catch (err) { go.disabled = false; return say(esc(apiError(err)), "bad"); }
+  say(`<span class="spin"></span>Check your phone and enter your M-Pesa PIN to pay <b>${esc(r.currency)} ${nf(r.amount)}</b>.`);
+  const t0 = Date.now();
+  const poll = async () => {
+    let s;
+    try { s = await api(`/api/license/pay/${encodeURIComponent(r.checkout_id)}`); } catch (err) { s = { status: "pending" }; }
+    if (s.status === "completed") {
+      say(`Payment received${s.receipt ? ` (M-Pesa ${esc(s.receipt)})` : ""}. Thank you! Unlocking…`, "ok");
+      setTimeout(() => location.reload(), 1800); return;
+    }
+    if (s.status === "failed") { go.disabled = false; return say(`Payment not completed: ${esc(s.message || "cancelled")}. You can try again.`, "bad"); }
+    if (Date.now() - t0 > 150000) { go.disabled = false;
+      return say("We haven't heard back from M-Pesa yet. If you paid, access returns automatically shortly. Otherwise try again.", "bad"); }
+    setTimeout(poll, 3000);
+  };
+  setTimeout(poll, 4000);
+}
+function apiError(err) {
+  let m = err.message.replace(/^\d+ /, "");
+  try { const d = JSON.parse(m).detail; m = typeof d === "string" ? d : "Request failed"; } catch {}
+  return m;
+}
+function openPayModal(lic) {
+  const wrap = document.createElement("div");
+  wrap.className = "modal-scrim";
+  wrap.innerHTML = `<div class="box" role="dialog" aria-label="Pay with M-Pesa"><h2>Renew your subscription</h2>
+    <p class="hint" style="margin:0">Paid until ${esc(lic.paid_until || "–")}${lic.pause_on ? ` · access pauses on ${esc(lic.pause_on)}` : ""}</p>
+    <div data-pay></div><div style="margin-top:12px;text-align:right"><button class="btn" data-close>Close</button></div></div>`;
+  document.body.appendChild(wrap);
+  renderPay(wrap.querySelector("[data-pay]"), lic);
+  const close = () => wrap.remove();
+  wrap.querySelector("[data-close]").onclick = close;
+  wrap.onclick = (e) => { if (e.target === wrap) close(); };
 }
 $("lockForm").onsubmit = async (e) => {
   e.preventDefault(); $("lockMsg").textContent = "Activating…";
@@ -1108,11 +1185,14 @@ $("lockCheck").onclick = async () => {
 function renderSubBar(lic) {
   const bar = $("subBar"); let html = "", cls = "";
   const info = `<svg class="i"><use href="#i-alert"/></svg>`;
-  if (lic.status === "overdue") { cls = "warn"; html = `${info}<span><b>Payment overdue.</b> ${esc(lic.reason)} Contact ${esc(lic.support?.name || "Flexpower")}${lic.support?.phone ? " on " + esc(lic.support.phone) : ""}.</span>`; }
+  const canPay = lic.billing && (lic.billing.mpesa || lic.billing.paybill) && lic.billing.price_month;
+  if (lic.status === "overdue") { cls = "warn"; html = `${info}<span style="flex:1"><b>Payment overdue.</b> ${esc(lic.reason)}${canPay ? "" : ` Contact ${esc(lic.support?.name || "Flexpower")}${lic.support?.phone ? " on " + esc(lic.support.phone) : ""}.`}</span>`
+    + (canPay ? `<button class="btn primary" id="payNowBtn" type="button">Pay with M-Pesa</button>` : ""); }
   else if (lic.status === "demo") html = `${info}<span><b>Demo mode.</b> Showing simulated meters. Activate a licence to connect real meters.</span>`;
   else if (lic.max_meters != null && CFG.meters.length > lic.max_meters) { cls = "warn";
     html = `${info}<span>Your plan includes ${lic.max_meters} meters; ${CFG.meters.length} are configured. Only the first ${lic.max_meters} in config.yaml are recorded.</span>`; }
   bar.innerHTML = html ? `<div class="${cls}">${html}</div>` : ""; bar.hidden = !html;
+  if ($("payNowBtn")) $("payNowBtn").onclick = () => openPayModal(lic);
 }
 
 /* ============================== start ============================== */

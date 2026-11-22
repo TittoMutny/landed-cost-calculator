@@ -20,17 +20,38 @@ support:
   phone: "+254 700 000 000"
   email: "billing@flexpower.example"
 
-# Plans: default meter limit and features. Each customer can be adjusted individually.
+# Plans: default meter limit, features and monthly price. Each customer can be
+# adjusted individually (including a custom monthly price).
+currency: KES
 plans:
   basic:
     max_meters: 10
+    price_month: 5000
     features: {reports: true, integrations: false}
   pro:
     max_meters: 50
+    price_month: 15000
     features: {reports: true, integrations: true}
   enterprise:
     max_meters: 500
+    price_month: 45000
     features: {reports: true, integrations: true}
+
+# M-Pesa (Safaricom Daraja). Payments are converted into months at the customer's
+# monthly price; leftovers stay as credit. Paying unlocks a paused site automatically.
+# Secrets are read from environment variables, never from this file:
+#   MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY,
+#   MPESA_CALLBACK_SECRET (a long random string, e.g. python -c "import secrets;print(secrets.token_urlsafe(32))")
+mpesa:
+  enabled: false
+  environment: sandbox                 # sandbox | production
+  shortcode: "174379"                  # Paybill (or Till store number) used for STK push ("Pay now")
+  transaction_type: CustomerPayBillOnline   # CustomerBuyGoodsOnline for a Till
+  # party_b: "123456"                  # Till number, if different from the store number above
+  c2b_shortcode: "600000"              # Paybill customers pay to from the M-Pesa menu (account no. = FLX0007)
+  public_base_url: "https://license.flexpower.example"   # this server as Safaricom reaches it
+  # allowed_ips: []                    # default: Safaricom's published callback IPs; [] disables the check
+  verify_stk_with_query: true          # double-check every STK callback with Safaricom before crediting
 
 secure_cookies: auto              # HTTPS-only admin cookie when served over HTTPS
 trust_cf_connecting_ip: true      # behind cloudflared: use the visitor's real IP for rate limits

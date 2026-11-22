@@ -47,6 +47,11 @@ class KeyBody(BaseModel):
     key: str = Field(min_length=8, max_length=64)
 
 
+class PayBody(BaseModel):
+    phone: str = Field(min_length=9, max_length=20)
+    months: int = Field(1, ge=1, le=24)
+
+
 def create_app(cfg: Config, db: Database, integrations=None, license=None) -> FastAPI:
     app = FastAPI(title="Flexpower EMS Kit", docs_url=None, redoc_url=None, openapi_url=None)
     web = cfg.section("web")
@@ -223,6 +228,36 @@ def create_app(cfg: Config, db: Database, integrations=None, license=None) -> Fa
         log.info("licence activated by %s: %s", user["username"], st.status)
         return st.public()
 
+    def user_action(request: Request) -> dict[str, Any]:
+        """Any signed-in user (not only admins) may pay; still needs the CSRF token."""
+        su = session_and_user(request)
+        if su is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Login required")
+        reject_cross_site(request)
+        if not secrets.compare_digest(request.headers.get("x-csrf-token", ""), su[0].csrf):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Missing or invalid CSRF token")
+        return su[1]
+
+    @app.post("/api/license/pay")
+    def pay_license(body: PayBody, user: dict = Depends(user_action)):
+        if license is None:
+            raise HTTPException(400, "Licensing is not enabled")
+        try:
+            r = license.pay(body.phone, body.months)
+        except RuntimeError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        log.info("M-Pesa payment request by %s: KES %s for %s month(s)", user["username"], r.get("amount"), body.months)
+        return r
+
+    @app.get("/api/license/pay/{checkout_id}")
+    def pay_status(checkout_id: str, user: dict = Depends(current_user)):
+        if license is None:
+            raise HTTPException(400, "Licensing is not enabled")
+        try:
+            return license.pay_status(checkout_id[:100])
+        except RuntimeError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
     @app.post("/api/license/check")
     def check_license(user: dict = Depends(admin_action)):
         if license is None:
@@ -335,7 +370,8 @@ def create_app(cfg: Config, db: Database, integrations=None, license=None) -> Fa
     @app.middleware("http")
     async def security_headers(request, call_next):
         path = request.url.path
-        if license is not None and path.startswith("/api/") and path not in open_paths:
+        if license is not None and path.startswith("/api/") and path not in open_paths \
+                and not path.startswith("/api/license/"):
             st = license.state()
             if not st.usable:
                 # 402 Payment Required: the dashboard shows the "subscription paused" screen

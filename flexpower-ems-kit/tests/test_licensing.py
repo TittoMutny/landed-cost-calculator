@@ -254,3 +254,88 @@ def test_dashboard_activation_endpoint(tmp_path, license_server):
     r = client.post("/api/license/activate", json={"key": key}, headers={"X-CSRF-Token": csrf})
     assert r.status_code == 200 and r.json()["status"] == "active"
     assert client.get("/api/summary").status_code == 200
+
+
+# ------------------------------------------------------------------ M-Pesa through the dashboard
+@pytest.fixture
+def mpesa_server(tmp_path, monkeypatch):
+    import uvicorn
+    from license_server.app import ServerConfig, create_app, hash_password
+    from license_server.mpesa import Daraja, MpesaSettings
+
+    for k, v in {"MPESA_CONSUMER_KEY": "ck", "MPESA_CONSUMER_SECRET": "cs", "MPESA_PASSKEY": "pk",
+                 "MPESA_CALLBACK_SECRET": "c" * 24}.items():
+        monkeypatch.setenv(k, v)
+    d = tmp_path / "srv2"
+    d.mkdir()
+    (d / "license-server.yaml").write_text(f"""
+admins:
+  - {{username: staff, password_hash: "{hash_password('staff-pass-1234', 1000)}"}}
+plans:
+  basic: {{max_meters: 10, price_month: 5000, features: {{reports: true, integrations: false}}}}
+mpesa: {{enabled: true, shortcode: "174379", c2b_shortcode: "600000", public_base_url: "https://lic.example",
+        allowed_ips: [], verify_stk_with_query: false, reconcile_in_background: false}}
+""")
+    cfg = ServerConfig(d / "license-server.yaml")
+    cfg.key_path.parent.mkdir(parents=True)
+    cfg.key_path.write_bytes(KEY.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                               serialization.NoEncryption()))
+
+    class Fake(Daraja):
+        pushes = []
+
+        def stk_push(self, phone, amount, ref, desc):
+            Fake.pushes.append((phone, amount, ref))
+            return {"ResponseCode": "0", "CheckoutRequestID": f"ws_CO_{len(Fake.pushes)}", "CustomerMessage": "ok"}
+
+    port = free_port()
+    server = uvicorn.Server(uvicorn.Config(create_app(cfg, daraja=Fake(MpesaSettings(cfg.raw["mpesa"]))),
+                                           host="127.0.0.1", port=port, log_level="warning"))
+    t = threading.Thread(target=server.run, daemon=True)
+    t.start()
+    for _ in range(100):
+        if server.started:
+            break
+        time.sleep(0.05)
+    yield f"http://127.0.0.1:{port}", Fake
+    server.should_exit = True
+    t.join(5)
+
+
+def test_paused_customer_pays_with_mpesa_from_dashboard(tmp_path, mpesa_server):
+    import httpx
+    from fastapi.testclient import TestClient
+    from datetime import date, timedelta
+
+    from ems.web import create_app
+
+    url, fake = mpesa_server
+    admin = httpx.Client(base_url=url)
+    admin.post("/admin/api/login", json={"username": "staff", "password": "staff-pass-1234"}).raise_for_status()
+    h = {"X-CSRF-Token": admin.get("/admin/api/me").json()["csrf"]}
+    cust = admin.post("/admin/api/customers", json={"name": "Pay Co", "plan": "basic",
+                      "paid_until": (date.today() - timedelta(days=30)).isoformat()}, headers=h).json()
+
+    cfg = cfg_for(tmp_path, extra=f"license: {{server_url: '{url}'}}\n")
+    lm = LicenseManager(cfg, public_key=PUB)
+    assert lm.activate(cust["license_key"]).status == "paused"
+    client = TestClient(create_app(cfg, Database(cfg.db_path), None, lm))
+    client.get("/login")
+    conf = client.get("/api/config").json()
+    assert conf["license"]["billing"]["account_no"] == "FLX0001" and conf["license"]["billing"]["mpesa"]
+    assert client.get("/api/summary").status_code == 402
+
+    r = client.post("/api/license/pay", json={"phone": "0712 345 678", "months": 1}, headers={"X-CSRF-Token": conf["csrf"]})
+    assert r.status_code == 200, r.text
+    assert fake.pushes[-1] == ("254712345678", 5000, "FLX0001")
+    cid = r.json()["checkout_id"]
+    assert client.get(f"/api/license/pay/{cid}").json()["status"] == "pending"
+
+    # Safaricom confirms the payment
+    httpx.post(f"{url}/mpesa/stk-callback/{'c' * 24}", json={"Body": {"stkCallback": {
+        "CheckoutRequestID": cid, "ResultCode": 0, "ResultDesc": "ok",
+        "CallbackMetadata": {"Item": [{"Name": "Amount", "Value": 5000}, {"Name": "MpesaReceiptNumber", "Value": "SKL1MN2OP3"}]}}}})
+    s = client.get(f"/api/license/pay/{cid}").json()
+    assert s["status"] == "completed" and s["license"]["status"] == "active"
+    assert client.get("/api/summary").status_code == 200  # unlocked without anyone at Flexpower doing anything
+    assert client.post("/api/license/pay", json={"phone": "0712345678"}).status_code == 403  # CSRF required

@@ -446,6 +446,11 @@ in the admin panel.
 | **cancelled** | Locked, and real meters are no longer recorded |
 | **demo** | No key and only simulated meters: fully usable for sales demos |
 
+- **Paying with M-Pesa:** when Flexpower has M-Pesa enabled, the lock screen and the
+  "payment overdue" banner show **Renew now**. The customer chooses 1, 3, 6 or 12 months,
+  enters their Safaricom number and confirms with their M-Pesa PIN, and the dashboard
+  unlocks by itself within seconds. They can also pay via Paybill using the account
+  number shown (e.g. `FLX0007`). Any signed-in user can pay, not only admins.
 - **Plans** set a meter limit and features. If more meters are configured than the
   plan allows, only the first ones in `config.yaml` are recorded, and the dashboard says so.
   Email reports and SCADA/MQTT connections can be switched on or off per customer.

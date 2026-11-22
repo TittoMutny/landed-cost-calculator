@@ -10,7 +10,6 @@ Two audiences:
 from __future__ import annotations
 
 import base64
-import calendar
 import hashlib
 import hmac
 import json
@@ -30,7 +29,9 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from . import billing
 from .crypto import load_key, public_key_b64, sign_token
+from .mpesa import account_no
 
 log = logging.getLogger("license_server")
 STATIC = Path(__file__).parent / "static"
@@ -126,9 +127,9 @@ class ServerConfig:
         self.support = r.get("support") or {}
         self.admins = {a["username"]: a["password_hash"] for a in r.get("admins") or [] if a.get("username")}
         self.plans = r.get("plans") or {
-            "basic": {"max_meters": 10, "features": {"reports": True, "integrations": False}},
-            "pro": {"max_meters": 50, "features": {"reports": True, "integrations": True}},
-            "enterprise": {"max_meters": 500, "features": {"reports": True, "integrations": True}},
+            "basic": {"max_meters": 10, "price_month": 5000, "features": {"reports": True, "integrations": False}},
+            "pro": {"max_meters": 50, "price_month": 15000, "features": {"reports": True, "integrations": True}},
+            "enterprise": {"max_meters": 500, "price_month": 45000, "features": {"reports": True, "integrations": True}},
         }
         self.secure_cookies = r.get("secure_cookies", "auto")
         self.trust_proxy_ip = bool(r.get("trust_cf_connecting_ip", True))
@@ -183,6 +184,7 @@ class CustomerBody(BaseModel):
     features: dict[str, bool] | None = None
     paid_until: str | None = None
     grace_days: int = Field(7, ge=0, le=90)
+    monthly_price: float | None = Field(None, ge=0, le=10_000_000)
     notes: str = Field("", max_length=2000)
 
 
@@ -195,6 +197,7 @@ class CustomerPatch(BaseModel):
     features: dict[str, bool] | None = None
     paid_until: str | None = None
     grace_days: int | None = Field(None, ge=0, le=90)
+    monthly_price: float | None = Field(None, ge=0, le=10_000_000)
     notes: str | None = Field(None, max_length=2000)
 
 
@@ -211,9 +214,11 @@ class PaymentBody(BaseModel):
 # ---------------------------------------------------------------------------
 # app
 # ---------------------------------------------------------------------------
-def create_app(cfg: ServerConfig) -> FastAPI:
+def create_app(cfg: ServerConfig, daraja=None) -> FastAPI:
     app = FastAPI(title="Flexpower licence server", docs_url=None, redoc_url=None, openapi_url=None)
     store = Store(cfg.db_path)
+    with store.connect() as con:
+        billing.migrate(con)
     key = load_key(cfg.key_path)
     app.state.public_key = public_key_b64(key)
 
@@ -252,8 +257,21 @@ def create_app(cfg: ServerConfig) -> FastAPI:
                 exp = now + 86400 * 365  # a pause stays in force until the server says otherwise
             payload.update(status=st, reason=why, exp=exp, lid=c["id"], customer=c["name"], plan=c["plan"],
                            paid_until=c["paid_until"], pause_on=pause_on.isoformat() if pause_on else None,
-                           max_meters=c["max_meters"], features=json.loads(c["features"]))
+                           max_meters=c["max_meters"], features=json.loads(c["features"]),
+                           billing=billing.billing_info(cfg, c) if st != "cancelled" else None)
         return {"token": sign_token(key, payload), "status": payload["status"], "reason": payload["reason"]}
+
+    def customer_for_key(con, key_text: str, machine_id: str, request: Request):
+        """For payment calls from an installation: the key must exist and belong to this PC."""
+        ip = client_ip(request)
+        if too_many(con, f"ip:{ip}", 20, 3600):
+            raise HTTPException(429, "Too many invalid licence keys from this address. Try again later.")
+        c = con.execute("SELECT * FROM customers WHERE key_hash=?", (sha256(normalize_key(key_text)),)).fetchone()
+        if c is None or c["machine_id"] != machine_id:
+            with store.connect() as con2:  # separate connection: the caller's is rolled back by the error
+                fail(con2, f"ip:{ip}", 3600)
+            raise HTTPException(403, "Licence key not valid on this PC")
+        return c
 
     def lookup(con, body: ClientBody, request: Request, activating: bool) -> JSONResponse:
         ip = client_ip(request)
@@ -374,7 +392,8 @@ def create_app(cfg: ServerConfig) -> FastAPI:
 
     @app.get("/admin/api/me")
     def admin_me(s: dict = Depends(admin_session)):
-        return {"username": s["username"], "csrf": s["csrf"], "plans": cfg.plans, "public_key": app.state.public_key}
+        return {"username": s["username"], "csrf": s["csrf"], "plans": cfg.plans, "public_key": app.state.public_key,
+                "currency": cfg.raw.get("currency", "KES")}
 
     # ------------------------------------------------------------- admin data
     def view(c: sqlite3.Row) -> dict:
@@ -382,7 +401,8 @@ def create_app(cfg: ServerConfig) -> FastAPI:
         d.pop("key_hash", None)
         d["features"] = json.loads(d["features"])
         st, why, pause_on = effective_status(d, datetime.now(timezone.utc).date())
-        d.update(effective=st, effective_reason=why, pause_on=pause_on.isoformat() if pause_on else None)
+        d.update(effective=st, effective_reason=why, pause_on=pause_on.isoformat() if pause_on else None,
+                 account_no=account_no(d["id"]), price_month=billing.monthly_price(cfg.plans, c))
         return d
 
     def get(con, cid: int) -> sqlite3.Row:
@@ -421,9 +441,10 @@ def create_app(cfg: ServerConfig) -> FastAPI:
         with store.lock, store.connect() as con:
             cur = con.execute(
                 """INSERT INTO customers(name, email, phone, plan, max_meters, features, paid_until, grace_days,
-                   key_hash, key_hint, notes, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   key_hash, key_hint, notes, created_at, monthly_price) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (body.name, body.email, body.phone, body.plan, body.max_meters or int(plan.get("max_meters", 10)),
-                 json.dumps(features), paid, body.grace_days, sha256(lic), lic[-4:], body.notes, int(time.time())))
+                 json.dumps(features), paid, body.grace_days, sha256(lic), lic[-4:], body.notes, int(time.time()),
+                 body.monthly_price or None))
             store.event(con, cur.lastrowid, actor, "created", f"plan {body.plan}, paid until {paid}")
             c = view(get(con, cur.lastrowid))
         c["license_key"] = lic  # shown once; only a hash is stored
@@ -467,18 +488,16 @@ def create_app(cfg: ServerConfig) -> FastAPI:
 
     @app.post("/admin/api/customers/{cid}/payment")
     def payment(cid: int, body: PaymentBody, actor: str = Depends(admin_write)):
+        """Staff-recorded payment (cash, bank, M-Pesa sent outside the integration): a fixed number of months."""
         with store.lock, store.connect() as con:
-            c = get(con, cid)
-            start = max(date.fromisoformat(c["paid_until"]), date.today())
-            y, m = divmod(start.month - 1 + body.months, 12)
-            day = min(start.day, calendar.monthrange(start.year + y, m + 1)[1])
-            new = date(start.year + y, m + 1, day).isoformat()
-            # a payment lifts a pause (but not a cancellation)
-            status = "active" if c["status"] == "paused" else c["status"]
-            con.execute("UPDATE customers SET paid_until=?, status=?, pause_reason=CASE WHEN ?='active' THEN NULL ELSE pause_reason END WHERE id=?",
-                        (new, status, status, cid))
-            store.event(con, cid, actor, "payment",
-                        f"{body.months} month(s) {body.amount} {body.reference}".strip() + f", paid until {new}")
+            get(con, cid)
+            note = f"Recorded {body.amount} {body.reference}".strip()
+            res = billing.credit_customer(con, cfg.plans, store.event, cid, 0, actor, note, fixed_months=body.months)
+            now = int(time.time())
+            con.execute("INSERT INTO payments(customer_id, method, status, months, account_ref, result_desc, "
+                        "requested_by, created, updated) VALUES (?,?,?,?,?,?,?,?,?)",
+                        (cid, "manual", "completed", res["months"], body.reference or None,
+                         f"{body.amount}".strip() or None, actor, now, now))
             return view(get(con, cid))
 
     @app.post("/admin/api/customers/{cid}/reset-activation")
@@ -500,6 +519,18 @@ def create_app(cfg: ServerConfig) -> FastAPI:
             c = view(get(con, cid))
         c["license_key"] = lic
         return c
+
+    billing.install(app, cfg, store, admin_session=admin_session, admin_write=admin_write, client_ip=client_ip,
+                    customer_for_key=customer_for_key, daraja=daraja)
+    if app.state.mpesa.enabled and cfg.raw.get("mpesa", {}).get("reconcile_in_background", True):
+        def reconcile_loop():
+            while True:
+                time.sleep(60)
+                try:
+                    app.state.reconcile()
+                except Exception:  # noqa: BLE001
+                    log.exception("M-Pesa reconciliation failed")
+        threading.Thread(target=reconcile_loop, name="mpesa-reconcile", daemon=True).start()
 
     @app.middleware("http")
     async def headers(request, call_next):

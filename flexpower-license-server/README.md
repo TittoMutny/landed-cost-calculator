@@ -4,7 +4,9 @@ Runs at Flexpower, **not** at customers. It decides which Flexpower EMS Kit
 installations may run, and lets staff manage subscriptions:
 
 - add customers and generate licence keys
-- record payments (M-Pesa, bank transfer, invoice), which extends "paid until"
+- **M-Pesa payments that unlock automatically**: "Pay now" prompts from the customer's
+  lock screen (STK push) and Paybill payments (C2B), turned into months at the plan price
+- record cash or bank payments by hand, which extends "paid until"
 - **pause / resume** a subscription with one click, with a reason the customer sees
 - automatic pause when a customer is unpaid past their grace period
 - plans with meter limits and features (email reports, SCADA/MQTT connections)
@@ -54,6 +56,57 @@ Then open `https://<your licence host>/admin`.
   `DEFAULT_SERVER` in `ems/licensing.py` before shipping.
 - Put the support phone and email in `license-server.yaml`. They're shown on the
   customer's "paused" screen.
+
+## M-Pesa payments (automatic unlock)
+
+Customers can pay in two ways. Either one extends the subscription and lifts a
+pause automatically, with no staff action needed:
+
+| Way | What the customer does | How it reaches us |
+|---|---|---|
+| **Pay now (STK push)** | On the EMS lock screen or "payment overdue" banner, picks 1/3/6/12 months, enters their Safaricom number, then enters their M-Pesa PIN on the phone | Daraja STK push → callback → the site unlocks within seconds |
+| **Paybill** | M-Pesa menu → Lipa na M-Pesa → Paybill **your number**, account **FLX0007** (shown on their lock screen and in the admin panel) | Daraja C2B confirmation → credited within a minute; the site unlocks at its next check-in or on "Check again" |
+
+Staff can also send a payment prompt to a customer's phone (*Request M-Pesa payment*
+on the customer), and still record cash or bank payments by hand.
+
+**How money becomes months.** Each plan has a `price_month`, which you can override per
+customer. A payment is added to the customer's credit, whole months are taken from it,
+and any remainder stays as credit for next time. For example, KES 7,500 on a
+KES 5,000 plan gives 1 month plus KES 2,500 credit.
+
+**Safety**
+
+- Each M-Pesa receipt is credited once only. Repeated callbacks are ignored.
+- Callbacks are only accepted at URLs containing `MPESA_CALLBACK_SECRET`, and by default
+  only from Safaricom's published IP addresses.
+- Every STK callback is double-checked with Safaricom (STK query) before it's credited.
+- If a callback is lost, the server asks Safaricom about pending payments every minute.
+- Paybill payments with an unknown account number aren't lost. They appear under
+  **M-Pesa payments → Unmatched** for staff to assign to the right customer. If Safaricom
+  enables validation for your shortcode, unknown account numbers are rejected at payment time.
+- An installation can only request payments for its own licence (key + PC must match),
+  limited to one open request at a time and 5 per hour.
+
+**Setup**
+
+1. Create an app on the Safaricom developer portal (https://developer.safaricom.co.ke)
+   and test with the sandbox shortcode first. For production you need your own Paybill
+   or Till "Go Live" approval, which gives you the consumer key, secret and passkey.
+2. Set these environment variables on the server (not in the YAML file):
+   ```
+   MPESA_CONSUMER_KEY=...  MPESA_CONSUMER_SECRET=...  MPESA_PASSKEY=...
+   MPESA_CALLBACK_SECRET=<python -c "import secrets;print(secrets.token_urlsafe(32))">
+   ```
+3. Fill in the `mpesa:` block of `license-server.yaml`: `enabled: true`, `environment`,
+   `shortcode`, `c2b_shortcode`, and `public_base_url` (the HTTPS address Safaricom can
+   reach, e.g. your Cloudflare Tunnel hostname). Set prices under `plans:`.
+4. Restart, open **M-Pesa payments** in the admin panel, check it says *Connected*, and
+   click **Register Paybill URLs with Safaricom** once.
+5. Test end to end with the sandbox before switching `environment: production`.
+
+The Safaricom IP list and API details come from the Daraja documentation. Check them
+on the Daraja portal when you go live.
 
 ## Security
 

@@ -87,7 +87,8 @@ label input, label select, label textarea { padding: 8px 10px; border: 1px solid
       <div class="bar">
         <input id="q" placeholder="Search name, email, phone, PC…" aria-label="Search">
         <select id="fStatus" aria-label="Filter"><option value="">All statuses</option><option>active</option><option>overdue</option><option>paused</option><option>cancelled</option></select>
-        <button class="btn primary" id="newBtn">+ New customer</button>
+        <button class="btn" id="payBtn" style="margin-left:auto">M-Pesa payments <span class="pill paused" id="unmatchedBadge" hidden></span></button>
+        <button class="btn primary" id="newBtn" style="margin-left:0">+ New customer</button>
       </div>
       <div class="wrap"><table><thead><tr><th>Customer</th><th>Plan</th><th>Status</th><th>Paid until</th><th>Meters</th><th>PC</th><th>Last check-in</th></tr></thead><tbody id="rows"></tbody></table></div>
     </div>
@@ -125,7 +126,49 @@ async function start() {
   $("login").hidden = true; $("app").hidden = false; $("who").textContent = ME.username;
   await load();
 }
-async function load() { CUSTOMERS = await api("/admin/api/customers"); render(); }
+async function load() {
+  CUSTOMERS = await api("/admin/api/customers"); render();
+  const un = await api("/admin/api/payments?status=unmatched").catch(() => []);
+  $("unmatchedBadge").hidden = !un.length; $("unmatchedBadge").textContent = `${un.length} unmatched`;
+}
+const money = (v) => v == null || v === "" ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+const CUR = () => ME?.currency || "KES";
+function paymentRows(list, withCustomer) {
+  if (!list.length) return '<p class="muted">No payments yet.</p>';
+  const name = (id) => (CUSTOMERS.find(c => c.id === id) || {}).name || "–";
+  return `<div class="wrap"><table><thead><tr><th>When</th>${withCustomer ? "<th>Customer</th>" : ""}<th>Method</th><th>Status</th><th>Amount</th><th>Months</th><th>Receipt / ref</th></tr></thead><tbody>
+    ${list.map(p => `<tr style="cursor:default" title="${esc(p.result_desc || "")}"><td>${fmtTs(p.created)}</td>${withCustomer ? `<td>${esc(name(p.customer_id))}</td>` : ""}
+    <td>${{ mpesa_stk: "M-Pesa (prompt)", mpesa_c2b: "M-Pesa Paybill", manual: "Recorded" }[p.method] || esc(p.method)}</td>
+    <td><span class="pill ${p.status === "completed" ? "active" : p.status === "pending" ? "overdue" : "paused"}">${esc(p.status)}</span></td>
+    <td>${money(p.amount)}</td><td>${p.months || "–"}</td><td>${esc(p.receipt || p.account_ref || "")}<div class="muted">${esc(p.phone || "")}</div></td></tr>`).join("")}</tbody></table></div>`;
+}
+$("payBtn").onclick = async () => {
+  const [info, unmatched, recent] = await Promise.all([api("/admin/api/mpesa"), api("/admin/api/payments?status=unmatched"), api("/admin/api/payments")]);
+  const ok = info.enabled && !info.problems.length;
+  modal(`<h2>M-Pesa payments</h2>
+    <p class="sub">${ok ? `Connected (${esc(info.environment)}) · STK shortcode ${esc(info.shortcode)} · Paybill ${esc(info.c2b_shortcode)}` : "Not ready"}</p>
+    ${ok ? "" : `<div class="banner paused">${info.problems.map(esc).join("<br>")}</div>`}
+    <div class="section"><h3>Unmatched Paybill payments</h3>
+      ${unmatched.length ? unmatched.map(p => `<div class="kv" style="grid-template-columns:1fr auto;align-items:center;padding:6px 0;border-bottom:1px dashed var(--border)">
+        <span><b>${esc(CUR())} ${money(p.amount)}</b> · ${esc(p.receipt)} · account “${esc(p.account_ref)}” · ${esc(p.phone)}<br><span class="muted">${fmtTs(p.created)}</span></span>
+        <span style="display:flex;gap:6px"><select data-assign="${p.id}"><option value="">Assign to…</option>${CUSTOMERS.map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.account_no)})</option>`).join("")}</select></span></div>`).join("")
+        : '<p class="muted">None. Every Paybill payment had a valid account number.</p>'}</div>
+    <div class="section"><h3>Recent payments</h3>${paymentRows(recent.slice(0, 30), true)}</div>
+    <div class="section"><h3>Setup</h3><div class="kv">
+      <span>STK callback</span><span class="muted">${esc(info.callbacks["stk-callback"] || "–")}</span>
+      <span>C2B confirmation</span><span class="muted">${esc(info.callbacks["c2b/confirmation"] || "–")}</span>
+      <span>C2B validation</span><span class="muted">${esc(info.callbacks["c2b/validation"] || "–")}</span></div>
+      <div class="actions"><button class="btn" id="regC2b" ${ok ? "" : "disabled"}>Register Paybill URLs with Safaricom</button><button class="btn" id="cx">Close</button></div></div>`);
+  $("cx").onclick = closeModal;
+  $("regC2b").onclick = async () => { try { const r = await api("/admin/api/mpesa/register-c2b", "POST"); toast(r.ResponseDescription || "Registered"); } catch (err) { toast(err.message); } };
+  document.querySelectorAll("[data-assign]").forEach(sel => sel.onchange = async () => {
+    if (!sel.value) return;
+    const c = CUSTOMERS.find(x => x.id === +sel.value);
+    if (!confirm(`Credit this payment to ${c.name}?`)) { sel.value = ""; return; }
+    try { const r = await api(`/admin/api/payments/${sel.dataset.assign}/assign`, "POST", { customer_id: +sel.value });
+      toast(`Credited: ${r.months} month(s), paid until ${r.paid_until}`); await load(); $("payBtn").click(); } catch (err) { toast(err.message); }
+  });
+};
 function render() {
   const q = $("q").value.toLowerCase(), f = $("fStatus").value;
   const n = (s) => CUSTOMERS.filter(c => s.includes(c.effective)).length;
@@ -156,11 +199,12 @@ $("newBtn").onclick = () => {
     <label>Email<input name="email" type="email"></label><label>Phone<input name="phone"></label>
     <label>Plan<select name="plan">${planOptions(p)}</select></label><label>Max meters (blank = plan default)<input name="max_meters" type="number" min="1"></label>
     <label>Paid until<input name="paid_until" type="date" value="${def}"></label><label>Grace days after due date<input name="grace_days" type="number" min="0" max="90" value="7"></label>
+    <label>Monthly price (blank = plan price)<input name="monthly_price" type="number" min="0" step="1"></label><span></span>
     <label class="full">Notes<textarea name="notes" rows="2"></textarea></label></div>
     <div class="actions"><button class="btn primary">Create &amp; generate key</button><button type="button" class="btn" id="cx">Cancel</button></div></form>`);
   $("cx").onclick = closeModal;
   $("nf").onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
-    f.max_meters = f.max_meters ? +f.max_meters : null; f.grace_days = +f.grace_days;
+    f.max_meters = f.max_meters ? +f.max_meters : null; f.grace_days = +f.grace_days; f.monthly_price = f.monthly_price ? +f.monthly_price : null;
     try { const c = await api("/admin/api/customers", "POST", f); await load(); showKey(c); } catch (err) { toast(err.message); } };
 };
 
@@ -174,12 +218,14 @@ function showKey(c) {
 }
 
 async function openCustomer(id) {
-  const c = await api(`/admin/api/customers/${id}`);
+  const [c, pays] = await Promise.all([api(`/admin/api/customers/${id}`), api(`/admin/api/payments?customer_id=${id}`)]);
   const banner = c.effective !== "active" ? `<div class="banner ${c.effective}">${esc(c.effective_reason)}</div>` : "";
   modal(`<h2>${esc(c.name)} <span class="pill ${c.effective}">${c.effective}</span></h2>
-  <p class="sub">Key …${esc(c.key_hint)} · plan ${esc(c.plan)} · paid until <b>${esc(c.paid_until)}</b>${c.pause_on ? ` · pauses on ${esc(c.pause_on)} if unpaid` : ""}</p>${banner}
+  <p class="sub">Account <b>${esc(c.account_no)}</b> · key …${esc(c.key_hint)} · plan ${esc(c.plan)} · ${c.price_month ? `${esc(CUR())} ${money(c.price_month)}/month` : "no price set"}
+    · paid until <b>${esc(c.paid_until)}</b>${c.pause_on ? ` · pauses on ${esc(c.pause_on)} if unpaid` : ""}${c.credit ? ` · credit ${esc(CUR())} ${money(c.credit)}` : ""}</p>${banner}
   <div class="actions">
     <button class="btn primary" id="aPay">Record payment</button>
+    ${c.status !== "cancelled" ? `<button class="btn" id="aStk">Request M-Pesa payment</button>` : ""}
     ${c.status === "paused" ? `<button class="btn good" id="aResume">Resume</button>` : c.status !== "cancelled" ? `<button class="btn danger" id="aPause">Pause now</button>` : `<button class="btn good" id="aResume">Reactivate</button>`}
     ${c.status !== "cancelled" ? `<button class="btn danger" id="aCancel">Cancel subscription</button>` : ""}
   </div>
@@ -193,9 +239,11 @@ async function openCustomer(id) {
     <label>Email<input name="email" type="email" value="${esc(c.email)}"></label><label>Phone<input name="phone" value="${esc(c.phone)}"></label>
     <label>Plan<select name="plan">${planOptions(c.plan)}</select></label><label>Max meters<input name="max_meters" type="number" min="1" value="${c.max_meters}"></label>
     <label>Paid until<input name="paid_until" type="date" value="${esc(c.paid_until)}"></label><label>Grace days<input name="grace_days" type="number" min="0" max="90" value="${c.grace_days}"></label>
+    <label>Monthly price (blank = plan price)<input name="monthly_price" type="number" min="0" step="1" value="${c.monthly_price ?? ""}"></label><span></span>
     <label class="full">Features${featureChecks(c.features)}</label>
     <label class="full">Notes<textarea name="notes" rows="2">${esc(c.notes)}</textarea></label></div>
     <div class="actions"><button class="btn">Save changes</button></div></form></div>
+  <div class="section"><h3>Payments</h3>${paymentRows(pays, false)}</div>
   <div class="section"><h3>History</h3>${c.events.map(e => `<div class="ev"><span>${fmtTs(e.ts)}</span><b>${esc(e.action)}</b><span>${esc(e.detail)} <span class="muted">· ${esc(e.actor)}</span></span></div>`).join("") || '<p class="muted">No events.</p>'}</div>`);
 
   const act = async (path, body, msg) => { try { await api(`/admin/api/customers/${id}/${path}`, "POST", body); toast(msg); await load(); openCustomer(id); } catch (err) { toast(err.message); } };
@@ -207,6 +255,15 @@ async function openCustomer(id) {
     $("cx").onclick = () => openCustomer(id);
     $("pf").onsubmit = (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); f.months = +f.months; act("payment", f, "Payment recorded"); };
   };
+  if ($("aStk")) $("aStk").onclick = () => {
+    modal(`<h2>Request M-Pesa payment</h2><p class="sub">${esc(c.name)} gets a PIN prompt on their phone. When they pay, the subscription extends (and unpauses) automatically.</p>
+    <form id="sf"><div class="grid2"><label>Phone<input name="phone" value="${esc(c.phone)}" placeholder="0712 345 678" required></label>
+    <label>Months<select name="months">${[1, 3, 6, 12].map(m => `<option value="${m}">${m} month${m > 1 ? "s" : ""}${c.price_month ? `: ${esc(CUR())} ${money(Math.max(1, Math.ceil(m * c.price_month - (c.credit || 0))))}` : ""}</option>`).join("")}</select></label></div>
+    <div class="actions"><button class="btn primary">Send prompt</button><button type="button" class="btn" id="cx">Back</button></div></form>`);
+    $("cx").onclick = () => openCustomer(id);
+    $("sf").onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); f.months = +f.months;
+      try { const r = await api(`/admin/api/customers/${id}/stk`, "POST", f); toast(`Prompt sent for ${r.currency} ${money(r.amount)}`); openCustomer(id); } catch (err) { toast(err.message); } };
+  };
   if ($("aPause")) $("aPause").onclick = () => { const reason = prompt("Reason shown to the customer:", "Subscription paused for non-payment. Please contact Flexpower.");
     if (reason !== null) act("pause", { reason }, "Paused. The site locks at its next check-in (within a few hours)."); };
   if ($("aResume")) $("aResume").onclick = () => act("resume", null, "Resumed. The site unlocks at its next check-in, or when someone clicks 'Check again'.");
@@ -216,6 +273,7 @@ async function openCustomer(id) {
     try { const r = await api(`/admin/api/customers/${id}/new-key`, "POST"); await load(); showKey(r); } catch (err) { toast(err.message); } };
   $("ef").onsubmit = async (e) => { e.preventDefault(); const fd = new FormData(e.target), f = Object.fromEntries(fd);
     f.max_meters = +f.max_meters; f.grace_days = +f.grace_days; f.features = { reports: fd.has("reports"), integrations: fd.has("integrations") };
+    if (f.monthly_price === "") delete f.monthly_price; else f.monthly_price = +f.monthly_price;
     try { await api(`/admin/api/customers/${id}`, "PATCH", f); toast("Saved"); await load(); openCustomer(id); } catch (err) { toast(err.message); } };
 }
 
