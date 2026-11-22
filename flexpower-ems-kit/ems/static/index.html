@@ -466,7 +466,7 @@ tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
         <div class="kv" id="schedule"></div>
       </div>
       <div class="card">
-        <div class="card-head"><div><h2>SCADA connections</h2><p>OPC UA / Modbus TCP for PCS 7, WinCC and other SCADA</p></div></div>
+        <div class="card-head"><div><h2>SCADA &amp; IoT connections</h2><p>OPC UA, Modbus TCP, PROFINET and MQTT</p></div></div>
         <div id="integrations" style="display:grid;gap:8px"></div>
         <button class="btn" id="tagsBtn" style="margin-top:12px;width:100%"><svg class="i"><use href="#i-down"/></svg>Tag list for SCADA engineers (CSV)</button>
         <div id="pnFiles" hidden style="display:grid;gap:8px;margin-top:8px">
@@ -995,12 +995,14 @@ async function loadReports() {
   $("schedule").innerHTML = `<span>Email sending</span><span>${CFG.email_enabled ? "Enabled" : "Disabled"}</span>` + row("daily") + row("weekly") + row("monthly");
   try {
     const { integrations } = await api("/api/integrations");
-    const label = { opcua: "OPC UA server", modbus_tcp: "Modbus TCP server", profinet_gateway: "PROFINET (via gateway)" };
+    const label = { opcua: "OPC UA server", modbus_tcp: "Modbus TCP server", profinet_gateway: "PROFINET (via gateway)", mqtt: "MQTT publisher" };
     $("pnFiles").hidden = !integrations.some(x => x.type === "profinet_gateway");
     $("integrations").innerHTML = integrations.length ? integrations.map(x => {
-      const st = x.error ? "failed" : x.running ? "sent" : "";
-      const txt = x.error ? "Error" : x.running ? (x.clients != null ? `Running · ${x.clients} client${x.clients === 1 ? "" : "s"}` : "Running") : "Stopped";
-      return `<div class="integ"><span class="pulse ${x.running && !x.error ? "" : "off"}"></span><b>${esc(label[x.type] || x.name)}</b>
+      const ok = x.running && !x.error && x.connected !== false;
+      const st = x.error || x.connected === false ? "failed" : x.running ? "sent" : "";
+      const txt = x.connected === false ? "Not connected" : x.error ? "Error" : x.running
+        ? (x.connected ? "Connected" : x.clients != null ? `Running · ${x.clients} client${x.clients === 1 ? "" : "s"}` : "Running") : "Stopped";
+      return `<div class="integ"><span class="pulse ${ok ? "" : "off"}"></span><b>${esc(label[x.type] || x.name)}</b>
         <span class="status-chip ${st}">${esc(txt)}</span><small>${esc(x.error || x.endpoint || "")}</small></div>`; }).join("")
       : `<p class="hint" style="margin:0">None enabled. Turn on <b>opcua</b> or <b>modbus_tcp</b> under <code>integrations:</code> in config.yaml.</p>`;
   } catch {}

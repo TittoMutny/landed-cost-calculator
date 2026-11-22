@@ -73,7 +73,12 @@ def builtin_types() -> dict[str, type[Integration]]:
     from .opcua_server import OpcUaIntegration
     from .profinet_gateway import ProfinetGatewayIntegration
     return {"opcua": OpcUaIntegration, "modbus_tcp": ModbusTcpIntegration,
-            "profinet_gateway": ProfinetGatewayIntegration}
+            "profinet_gateway": ProfinetGatewayIntegration, "mqtt": _mqtt_class()}
+
+
+def _mqtt_class():
+    from .mqtt_publisher import MqttIntegration
+    return MqttIntegration
 
 
 def profinet_options(cfg: Config) -> dict[str, Any]:

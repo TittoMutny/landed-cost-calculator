@@ -286,3 +286,112 @@ def test_profinet_gateway_size_check(tmp_path):
     mgr.stop()
     assert any("88 bytes needed" in (e or "") for e in errs)
     assert any("unknown meter" in (e or "") for e in errs)
+
+
+# ------------------------------------------------------------------ MQTT
+def test_mqtt_message_format(tmp_path):
+    import json
+    from ems.integrations.mqtt_publisher import MqttIntegration
+
+    cfg, db = make(tmp_path)
+    snap = IntegrationManager(cfg, db).build_snapshot()
+    p = MqttIntegration(cfg, {"host": "x", "format": "both", "tls": False})
+    msgs = dict(p.messages(snap))
+    assert p.prefix == "flexpower/test" and p.port == 1883
+    site = json.loads(msgs["flexpower/test/site"])
+    assert site["power_kw"] == 12.5 and site["ts"].endswith("Z")
+    a = json.loads(msgs["flexpower/test/meters/a"])
+    assert a["name"] == "Machine A" and a["online"] is True and a["power_kw"] == 4.0
+    assert msgs["flexpower/test/meters/a/power_kw"] == "4.0"
+    assert msgs["flexpower/test/meters/a/voltage_v"] == ""          # not measured
+    assert msgs["flexpower/test/meters/main/online"] == "true"
+    with pytest.raises(ValueError):
+        MqttIntegration(cfg, {"format": "xml"})
+
+
+@pytest.fixture
+def mqtt_broker():
+    pytest.importorskip("amqtt")
+    import threading
+    from amqtt.broker import Broker
+
+    port = free_port()
+    loop = asyncio.new_event_loop()
+    ready = threading.Event()
+    holder = {}
+
+    def run():
+        asyncio.set_event_loop(loop)
+        broker = Broker({"listeners": {"default": {"type": "tcp", "bind": f"127.0.0.1:{port}"}},
+                         "plugins": {"amqtt.plugins.authentication.AnonymousAuthPlugin": {"allow_anonymous": True}}},
+                        loop=loop)
+        holder["broker"] = broker
+        loop.run_until_complete(broker.start())
+        ready.set()
+        loop.run_forever()
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    assert ready.wait(10)
+    yield port
+    fut = asyncio.run_coroutine_threadsafe(holder["broker"].shutdown(), loop)
+    try:
+        fut.result(10)
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        t.join(5)
+
+
+def test_mqtt_publishes_to_broker(tmp_path, mqtt_broker):
+    import json
+    import paho.mqtt.client as mqtt
+
+    got: dict[str, str] = {}
+    sub = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="test-sub")
+    sub.on_message = lambda c, u, m: got.__setitem__(m.topic, m.payload.decode())
+    sub.connect("127.0.0.1", mqtt_broker)
+    sub.subscribe("plant/#", qos=1)
+    sub.loop_start()
+    cfg, db = make(tmp_path, f"""integrations:
+  - {{type: mqtt, enabled: true, host: 127.0.0.1, port: {mqtt_broker}, tls: false, topic_prefix: plant, format: both, only_changes: true}}
+""")
+    mgr = IntegrationManager(cfg, db)
+    mgr.start()
+    try:
+        for _ in range(50):
+            if mgr.plugins[0].connected:
+                break
+            time.sleep(0.1)
+        assert mgr.plugins[0].connected, mgr.status()
+        mgr.publish(mgr.build_snapshot())
+        for _ in range(50):
+            if "plant/meters/a/power_kw" in got and "plant/status" in got:
+                break
+            time.sleep(0.1)
+        assert got["plant/status"] == "online"
+        assert json.loads(got["plant/meters/a"])["power_kw"] == 4.0
+        assert got["plant/meters/a/power_kw"] == "4.0"
+        assert json.loads(got["plant/site"])["meters_total"] == 2
+        assert mgr.status()[0]["connected"] is True
+    finally:
+        mgr.stop()
+    for _ in range(30):
+        if got.get("plant/status") == "offline":
+            break
+        time.sleep(0.1)
+    assert got["plant/status"] == "offline"  # clean shutdown announces offline
+    sub.loop_stop(); sub.disconnect()
+
+
+def test_mqtt_not_connected_is_reported(tmp_path):
+    cfg, db = make(tmp_path, f"""integrations:
+  - {{type: mqtt, enabled: true, host: 127.0.0.1, port: {free_port()}, tls: false}}
+""")
+    mgr = IntegrationManager(cfg, db)
+    mgr.start()
+    try:
+        mgr.publish(mgr.build_snapshot())
+        st = mgr.status()[0]
+        assert st["running"] and st["connected"] is False and st["error"]
+    finally:
+        mgr.stop()

@@ -6,6 +6,7 @@
     python -m ems report weekly --html out.html [--send]
     python -m ems hash-password            make a password hash for config.yaml
     python -m ems set-smtp-password        store the email password encrypted (Windows DPAPI)
+    python -m ems set-mqtt-password        store the MQTT broker password encrypted
     python -m ems scada-map                Modbus register map + OPC UA tag list for SCADA/PCS 7
     python -m ems profinet-files           STEP 7 UDT/DB source + gateway settings (PROFINET via gateway)
 """
@@ -176,10 +177,20 @@ def cmd_hash_password(args, cfg) -> None:
 
 
 def cmd_set_smtp_password(args, cfg) -> None:
+    _store_secret(cfg.smtp_password_file, f"SMTP password for {cfg.section('email').get('username') or 'the mail account'}: ")
+
+
+def cmd_set_mqtt_password(args, cfg) -> None:
+    opts = next((o for o in cfg.raw.get("integrations") or [] if isinstance(o, dict) and o.get("type") == "mqtt"), {})
+    p = Path(opts.get("password_file") or "data/mqtt.secret")
+    _store_secret(p if p.is_absolute() else cfg.base_dir / p,
+                  f"MQTT broker password for {opts.get('username') or 'the broker user'}: ")
+
+
+def _store_secret(path: Path, prompt: str) -> None:
     from .credentials import dpapi_available, save_secret
 
-    path = cfg.smtp_password_file
-    pw = getpass.getpass(f"SMTP password for {cfg.section('email').get('username') or 'the mail account'}: ")
+    pw = getpass.getpass(prompt)
     if not pw:
         sys.exit("No password entered; nothing changed.")
     if pw != getpass.getpass("Repeat: "):
@@ -210,6 +221,7 @@ def main(argv: list[str] | None = None) -> None:
     rp.add_argument("--to", nargs="*", help="override recipients when sending")
     sub.add_parser("hash-password")
     sub.add_parser("set-smtp-password")
+    sub.add_parser("set-mqtt-password")
     sm = sub.add_parser("scada-map")
     sm.add_argument("--out", help="CSV file to write (default data/scada-tags.csv)")
     pf = sub.add_parser("profinet-files")
@@ -224,7 +236,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(f"Config error: {exc}")
     setup_logging(cfg.base_dir, args.verbose)
     {"run": cmd_run, "seed-demo": cmd_seed_demo, "test-meter": cmd_test_meter,
-     "report": cmd_report, "set-smtp-password": cmd_set_smtp_password,
+     "report": cmd_report, "set-smtp-password": cmd_set_smtp_password, "set-mqtt-password": cmd_set_mqtt_password,
      "scada-map": cmd_scada_map, "profinet-files": cmd_profinet_files}[args.cmd](args, cfg)
 
 

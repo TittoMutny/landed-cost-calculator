@@ -115,6 +115,24 @@ integrations:
     db_number: 100
     update_seconds: 2
 
+  # MQTT - publish to a broker (Mosquitto, HiveMQ, EMQX, Ignition MQTT Engine,
+  # Node-RED, AWS IoT, Azure IoT Hub...). Publish-only: it never subscribes.
+  - type: mqtt
+    enabled: false
+    host: "broker.yourcompany.local"
+    tls: true                       # port 8883 by default; false = plain MQTT on 1883 (trusted networks only)
+    # port: 8883
+    # ca_file: "data/mqtt/ca.crt"   # the broker's CA if it isn't publicly trusted
+    # client_cert: "data/mqtt/client.crt"   # for brokers that require client certificates
+    # client_key: "data/mqtt/client.key"
+    username: "flexpower"           # store the password with: python -m ems set-mqtt-password
+    # topic_prefix: "flexpower/demo-factory"   # default: flexpower/<site name>
+    format: json                    # json | values (one topic per value) | both
+    qos: 1
+    retain: true                    # new subscribers get the latest values immediately
+    only_changes: false             # true = skip messages whose values haven't changed
+    update_seconds: 10
+
   # Your own plugin (Python file in the plugins/ folder), e.g. the CSV example:
   - type: custom
     enabled: false

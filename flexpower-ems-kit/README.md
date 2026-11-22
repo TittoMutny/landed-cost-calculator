@@ -15,8 +15,9 @@ one Windows PC on the plant network and:
 - **emails** weekly and monthly reports with plain-language findings and CSV attachments
 - is published online safely through **Cloudflare Tunnel + Cloudflare Access**,
   so the owner can open it from anywhere without opening ports on the firewall
-- **feeds SCADA / Siemens PCS 7** through plugins: an **OPC UA server** and a
-  read-only **Modbus TCP server**, plus your own Python plugins
+- **feeds SCADA / Siemens PCS 7 and IoT platforms** through plugins: an **OPC UA
+  server**, a read-only **Modbus TCP server**, **PROFINET** via a gateway, an
+  **MQTT** publisher, plus your own Python plugins
 
 Adding a meter is one entry in `config.yaml`. The dashboard, reports and
 analysis pick it up automatically.
@@ -216,7 +217,7 @@ How sign-in is protected:
 - Session cookies are HttpOnly and, over HTTPS, Secure. Only a hash of the cookie is
   stored, so a copied database can't be used to sign in.
 
-## Connecting to SCADA or Siemens PCS 7
+## Connecting to SCADA, Siemens PCS 7 and MQTT
 
 Plugins publish the EMS values to other systems. They **only publish**: no SCADA,
 PLC or OPC client can change meters, settings or stored data through them.
@@ -227,9 +228,10 @@ Enable them under `integrations:` in `config.yaml` and restart.
 | `opcua` | **PCS 7 OS / WinCC**, WinCC OA, Ignition, AVEVA, Kepware, any OPC UA client | 4840 |
 | `modbus_tcp` | Any SCADA with a Modbus TCP driver; PLCs, including a PCS 7 AS with a Modbus TCP block library | 502 |
 | `profinet_gateway` | **PROFINET** into a PCS 7 AS / S7 controller through a Modbus TCP → PROFINET gateway | 502 |
-| `custom` | Your own Python file in `plugins/` (MQTT, SQL, a historian...). See `plugins/example_csv_export.py` | – |
+| `mqtt` | MQTT brokers: Mosquitto, HiveMQ, EMQX, Ignition MQTT Engine, Node-RED, AWS IoT / Azure IoT Hub | 8883 out |
+| `custom` | Your own Python file in `plugins/` (SQL, a historian, a REST API...). See `plugins/example_csv_export.py` | – |
 
-**Get the tag list** for the SCADA engineer: *Reports → SCADA connections →
+**Get the tag list** for the SCADA engineer: *Reports → SCADA & IoT connections →
 Tag list (CSV)* in the dashboard, or `python -m ems scada-map`. It lists every
 value with its Modbus address and OPC UA NodeId.
 
@@ -326,7 +328,7 @@ Then generate the engineering files:
 .\.venv\Scripts\python.exe -m ems profinet-files
 ```
 
-or use *Reports → SCADA connections* in the dashboard. You get:
+or use *Reports → SCADA & IoT connections* in the dashboard. You get:
 
 - **`EMS_DB.awl`**: a STEP 7 / PCS 7 source with a UDT per meter and a DB laid out
   exactly like the input data. Add it under *Sources*, check the UDT/DB numbers,
@@ -363,13 +365,49 @@ powershell -ExecutionPolicy Bypass -File deploy\windows\open-scada-ports.ps1 -Sc
 Bind `endpoint` / `host` to the control-network IP rather than `0.0.0.0`, so
 the servers can't be reached from the office network at all.
 
+### MQTT
+
+```yaml
+  - type: mqtt
+    enabled: true
+    host: "broker.yourcompany.local"
+    tls: true                     # port 8883
+    username: "flexpower"         # password: python -m ems set-mqtt-password
+    format: json                  # json | values | both
+    qos: 1
+    retain: true
+    update_seconds: 10
+```
+
+Topics (the prefix defaults to `flexpower/<site name>`; change it with `topic_prefix`):
+
+| Topic | Payload |
+|---|---|
+| `<prefix>/status` | `online` / `offline`. Retained. The broker sets it to `offline` (Last Will) if the EMS drops off without saying goodbye |
+| `<prefix>/site` | `{"ts":"2026-11-22T09:15:00Z","site":"Demo Factory","power_kw":17.8,"today_kwh":244.8,"month_kwh":18715.0,"meters_online":6,"meters_total":6}` |
+| `<prefix>/meters/<id>` | `{"ts":...,"id":"compressor","name":"Air Compressor","group":"Utilities","main":false,"online":true,"age_s":12,"power_kw":6.7,"energy_kwh":48211.3,"voltage_v":401.2,"current_a":10.3,"pf":0.93,"today_kwh":98.4,"month_kwh":5889.0}` |
+| `<prefix>/meters/<id>/<value>` | with `format: values` or `both`, one plain value per topic, e.g. `.../compressor/power_kw` → `6.7` |
+
+- **Security.** TLS is on by default and the broker's certificate is checked. Use
+  `ca_file` for a private CA, and `client_cert` / `client_key` for brokers that require
+  client certificates (AWS IoT, Azure IoT Hub). The password is stored encrypted like
+  the email password. The plugin **only publishes**: it subscribes to nothing, so
+  messages on the broker can't control the EMS.
+- `retain: true` means a dashboard or SCADA that connects later gets the latest values
+  immediately. `only_changes: true` skips messages whose values haven't changed.
+- The connection is outgoing from the EMS PC, so no inbound firewall port is needed.
+  If the broker is down, the EMS keeps metering and reconnects by itself, and the
+  dashboard shows *Not connected*.
+- Ignition users: point the MQTT Engine (or a plain MQTT client) at the topics
+  above. Sparkplug B encoding isn't included yet.
+
 ### Writing your own plugin
 
 ```python
-# plugins/my_mqtt.py
+# plugins/my_historian.py
 from ems.integrations import Integration
 
-class MyMqtt(Integration):
+class MyHistorian(Integration):
     def start(self):   ...   # connect; self.options holds your config block
     def publish(self, snapshot):   # called every update_seconds
         for m in snapshot["meters"]:
@@ -378,7 +416,7 @@ class MyMqtt(Integration):
 ```
 
 ```yaml
-  - {type: custom, enabled: true, class: "my_mqtt:MyMqtt", update_seconds: 10}
+  - {type: custom, enabled: true, class: "my_historian:MyHistorian", update_seconds: 10}
 ```
 
 A plugin that fails to load or start is reported in the dashboard and the log.
@@ -400,7 +438,7 @@ ems/
   scheduler.py   weekly/monthly jobs, data retention
   web.py         dashboard + JSON API + login
   static/        dashboard page (Chart.js bundled, works offline)
-  integrations/  SCADA plugins: OPC UA, read-only Modbus TCP, PROFINET gateway layout, plugin loader
+  integrations/  plugins: OPC UA, read-only Modbus TCP, PROFINET gateway layout, MQTT, plugin loader
 plugins/         your own plugins (example: CSV export)
 deploy/windows/  install and service scripts
 tests/           unit tests and a real Modbus TCP round-trip test
