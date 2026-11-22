@@ -3,169 +3,518 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#2a78d6">
 <title>Flexpower EMS Kit</title>
 <style>
 :root {
   color-scheme: light;
-  --bg: #f3f4f2; --surface-1: #fcfcfb; --border: #e3e2de;
+  --bg: #f2f3f1; --surface-1: #fdfdfc; --surface-2: #f1f1ee; --surface-3: #e7e6e2; --border: #e3e2de;
   --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7b7a75;
-  --grid: #e8e7e3; --accent: #2a78d6;
+  --grid: #ebeae6; --accent: #2a78d6; --accent-soft: #e3effc; --on-accent: #ffffff;
   --good: #0ca30c; --critical: #d03b3b; --good-text: #006300; --critical-text: #b42727;
+  --good-soft: #e4f4e4; --critical-soft: #fbe7e7;
+  --shadow: 0 1px 2px rgba(20,20,15,.04), 0 4px 16px rgba(20,20,15,.05);
+  --shadow-lg: 0 12px 40px rgba(20,20,15,.18);
   --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s-other:#9a9993;
+  --h0:#cde2fb; --h1:#b7d3f6; --h2:#9ec5f4; --h3:#86b6ef; --h4:#6da7ec; --h5:#5598e7; --h6:#3987e5; --h7:#256abf; --h8:#184f95;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --bg: #111110; --surface-1: #1a1a19; --border: #2e2e2b;
+    --bg: #0f0f0e; --surface-1: #1a1a19; --surface-2: #232321; --surface-3: #2e2e2b; --border: #2c2c29;
     --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
-    --grid: #2a2a27; --accent: #3987e5; --good-text: #3fc23f; --critical-text: #e66767;
+    --grid: #282825; --accent: #3987e5; --accent-soft: #1b2c42; --on-accent: #ffffff;
+    --good-text: #3fc23f; --critical-text: #e66767; --good-soft: #15291a; --critical-soft: #331b1b;
+    --shadow: 0 1px 2px rgba(0,0,0,.3); --shadow-lg: 0 12px 40px rgba(0,0,0,.6);
     --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#0ca30c; --s7:#9085e9; --s-other:#6d6c66;
+    --h0:#163d6e; --h1:#184f95; --h2:#1c5cab; --h3:#256abf; --h4:#2a78d6; --h5:#3987e5; --h6:#5598e7; --h7:#86b6ef; --h8:#b7d3f6;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #111110; --surface-1: #1a1a19; --border: #2e2e2b;
+  --bg: #0f0f0e; --surface-1: #1a1a19; --surface-2: #232321; --surface-3: #2e2e2b; --border: #2c2c29;
   --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
-  --grid: #2a2a27; --accent: #3987e5; --good-text: #3fc23f; --critical-text: #e66767;
+  --grid: #282825; --accent: #3987e5; --accent-soft: #1b2c42; --on-accent: #ffffff;
+  --good-text: #3fc23f; --critical-text: #e66767; --good-soft: #15291a; --critical-soft: #331b1b;
+  --shadow: 0 1px 2px rgba(0,0,0,.3); --shadow-lg: 0 12px 40px rgba(0,0,0,.6);
   --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#0ca30c; --s7:#9085e9; --s-other:#6d6c66;
+  --h0:#163d6e; --h1:#184f95; --h2:#1c5cab; --h3:#256abf; --h4:#2a78d6; --h5:#3987e5; --h6:#5598e7; --h7:#86b6ef; --h8:#b7d3f6;
 }
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text-primary);
-  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 24px;
-  background: var(--surface-1); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
-header h1 { font-size: 18px; margin: 0; font-weight: 600; }
-header .site { color: var(--text-muted); font-size: 12px; }
-.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
-select, button, input[type=date] { font: inherit; color: var(--text-primary); background: var(--surface-1);
-  border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
-button { cursor: pointer; } button:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-.seg button { border: 0; border-radius: 0; } .seg button[aria-pressed=true] { background: var(--accent); color: #fff; }
-main { max-width: 1400px; margin: 0 auto; padding: 20px 24px 40px; display: grid; gap: 16px;
-  grid-template-columns: repeat(12, 1fr); }
-.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
-.card h2 { font-size: 14px; margin: 0 0 12px; font-weight: 600; }
-.card h2 .sub { color: var(--text-muted); font-weight: 400; margin-left: 6px; }
-.span-12 { grid-column: span 12; } .span-8 { grid-column: span 8; } .span-7 { grid-column: span 7; }
-.span-5 { grid-column: span 5; } .span-4 { grid-column: span 4; }
-.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; grid-column: span 12; }
-.tile .label { color: var(--text-secondary); font-size: 12px; }
-.tile .value { font-size: 26px; font-weight: 600; margin: 2px 0; font-variant-numeric: tabular-nums; }
-.tile .note { font-size: 12px; color: var(--text-muted); }
-.up { color: var(--critical-text); } .down { color: var(--good-text); }
-.chart { position: relative; height: 300px; } .chart.tall { height: 340px; }
-ul.insights { margin: 0; padding-left: 18px; } ul.insights li { margin-bottom: 6px; }
+  font: 14px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+svg.i { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+[hidden] { display: none !important; }
+
+/* ---------- app bar ---------- */
+.appbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 20px;
+  padding: 10px 24px; background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none;
+  background: linear-gradient(135deg, var(--s1), var(--s7)); color: #fff; }
+.logo svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+.brand b { display: block; font-size: 15px; letter-spacing: -.01em; }
+.brand small { display: block; color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+nav.tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; }
+nav.tabs button { border: 0; background: none; padding: 6px 14px; border-radius: 9px; color: var(--text-secondary); font-weight: 500;
+  display: flex; align-items: center; gap: 6px; transition: background .15s, color .15s; }
+nav.tabs button[aria-selected="true"] { background: var(--surface-1); color: var(--text-primary); box-shadow: var(--shadow); }
+.bar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; padding: 5px 10px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-secondary); white-space: nowrap; }
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--good); position: relative; flex: none; }
+.pulse::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--good); opacity: 0;
+  animation: pulse 2s infinite; }
+.pulse.off { background: var(--critical); } .pulse.off::after { border-color: var(--critical); }
+@keyframes pulse { 0% { transform: scale(.5); opacity: .8 } 100% { transform: scale(1.6); opacity: 0 } }
+.icon-btn { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-secondary); }
+.icon-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.user-chip { display: flex; align-items: center; gap: 8px; padding: 3px 4px 3px 3px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-1); }
+.avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 12px; }
+.user-chip button { border: 0; background: none; color: var(--text-secondary); font-size: 12px; padding: 4px 8px; border-radius: 999px; }
+.user-chip button:hover { background: var(--surface-2); color: var(--text-primary); }
+
+/* ---------- toolbar ---------- */
+.toolbar { max-width: 1440px; margin: 0 auto; padding: 18px 24px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.toolbar h1 { font-size: 22px; letter-spacing: -.02em; margin: 0 8px 0 0; }
+.toolbar .range { color: var(--text-muted); font-size: 13px; }
+.periods { display: flex; gap: 4px; padding: 4px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; }
+.periods button, .seg button { border: 0; background: none; padding: 6px 12px; border-radius: 8px; color: var(--text-secondary); white-space: nowrap; }
+.periods button[aria-pressed="true"], .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.periods select { border: 0; background: none; color: var(--text-secondary); padding: 6px 8px; border-radius: 8px; }
+.periods select.active { background: var(--accent); color: var(--on-accent); }
+.custom { display: none; gap: 6px; align-items: center; }
+.custom input { border: 1px solid var(--border); background: var(--surface-1); border-radius: 8px; padding: 6px 8px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface-1);
+  padding: 7px 12px; border-radius: 10px; color: var(--text-primary); }
+.btn:hover { border-color: var(--text-muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.ghost { border-color: transparent; background: var(--accent-soft); color: var(--accent); }
+.seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-2); border-radius: 10px; }
+.seg button { padding: 4px 10px; font-size: 12px; }
+
+/* ---------- layout ---------- */
+main { max-width: 1440px; margin: 0 auto; padding: 16px 24px 48px; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+.card-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.card-head h2 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: -.01em; }
+.card-head p { margin: 2px 0 0; color: var(--text-muted); font-size: 12px; }
+.card-head .tools { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.c12 { grid-column: span 12; } .c8 { grid-column: span 8; } .c7 { grid-column: span 7; } .c5 { grid-column: span 5; } .c4 { grid-column: span 4; }
+.fade-in { animation: fade .35s ease both; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+
+/* ---------- KPI tiles ---------- */
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; grid-column: span 12; }
+.kpi { position: relative; overflow: hidden; padding: 16px 18px 14px; display: flex; flex-direction: column; min-height: 150px; }
+.kpi .top { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px; }
+.kpi .ico { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.kpi .ico svg { width: 16px; height: 16px; }
+.kpi .value { font-size: 28px; font-weight: 650; letter-spacing: -.02em; margin: 10px 0 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpi .value small { font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-left: 3px; }
+.kpi .note { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kpi canvas.spark { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 44px; opacity: .9; pointer-events: none; }
+.kpi.has-spark { padding-bottom: 48px; }
+.delta { white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; font-weight: 600; font-size: 12px; padding: 2px 7px; border-radius: 999px; }
+.delta.up { color: var(--critical-text); background: var(--critical-soft); }
+.delta.down { color: var(--good-text); background: var(--good-soft); }
+.delta.flat { color: var(--text-muted); background: var(--surface-2); }
+.compare { margin-top: auto; display: grid; gap: 5px; font-size: 11px; color: var(--text-muted); }
+.compare .track { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.compare .track div { height: 100%; border-radius: 3px; transition: width .6s ease; }
+
+.skeleton { color: transparent !important; background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%; animation: shimmer 1.3s infinite; border-radius: 8px; }
+@keyframes shimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+
+/* ---------- charts ---------- */
+.chart { position: relative; height: 320px; } .chart.sm { height: 260px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.legend button { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); transition: opacity .15s; }
+.legend button i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.legend button[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+.legend span.static { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); margin-right: 10px; }
+.legend span.static i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.hint { font-size: 12px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; }
+.hint svg { width: 14px; height: 14px; }
+
+/* insights */
+.insights { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.insights li { display: flex; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); line-height: 1.4; }
+.insights .ico { width: 28px; height: 28px; flex: none; border-radius: 8px; display: grid; place-items: center; background: var(--surface-1); color: var(--accent); }
+.insights .ico svg { width: 15px; height: 15px; }
+
+/* share bar */
+.sharebar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px; margin: 4px 0 16px; }
+.sharebar div { height: 100%; transition: flex-grow .5s ease; }
+.share-list { display: grid; gap: 2px; }
+.share-row { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 6px; border-radius: 10px; }
+.share-row:hover { background: var(--surface-2); }
+.share-row i { width: 10px; height: 10px; border-radius: 3px; }
+.share-row .num { font-variant-numeric: tabular-nums; text-align: right; color: var(--text-secondary); font-size: 13px; }
+.share-row .num b { color: var(--text-primary); font-weight: 600; }
+
+/* heatmap */
+.heat { display: grid; grid-template-columns: 64px repeat(24, minmax(0, 1fr)); gap: 2px; font-size: 11px; color: var(--text-muted); }
+.heat .cell { border-radius: 3px; min-height: 6px; cursor: pointer; transition: transform .1s; }
+.heat .cell:hover { transform: scale(1.35); outline: 2px solid var(--surface-1); position: relative; z-index: 1; }
+.heat .cell.empty { background: var(--surface-2); cursor: default; }
+.heat .day { white-space: nowrap; overflow: hidden; line-height: 1; display: flex; align-items: center; }
+.heat .hr { text-align: center; padding-top: 4px; }
+.heat-legend { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-top: 12px; }
+.heat-legend i { width: 18px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* tooltip */
+#tip { position: fixed; z-index: 60; pointer-events: none; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg); border-radius: 10px; padding: 8px 10px; font-size: 12px; display: none; max-width: 260px; }
+#tip b { display: block; font-size: 13px; }
+
+/* ---------- machines ---------- */
+.mtools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+.search { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--border); background: var(--surface-1);
+  border-radius: 10px; min-width: 240px; flex: 0 1 320px; color: var(--text-muted); }
+.search input { border: 0; background: none; outline: none; padding: 9px 0; width: 100%; color: var(--text-primary); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips button { border: 1px solid var(--border); background: var(--surface-1); padding: 6px 12px; border-radius: 999px; color: var(--text-secondary); font-size: 13px; }
+.chips button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+.mgrid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.mcard { text-align: left; border: 1px solid var(--border); background: var(--surface-1); border-radius: 16px; padding: 16px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 10px; transition: transform .15s, box-shadow .15s, border-color .15s; position: relative; overflow: hidden; }
+.mcard:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--accent); }
+.mcard .row { display: flex; align-items: center; gap: 8px; }
+.mcard .name { font-weight: 600; font-size: 15px; }
+.mcard .grp { color: var(--text-muted); font-size: 12px; }
+.mcard .status { margin-left: auto; font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.mcard .kw { font-size: 26px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.mcard .kw small { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.mcard canvas { width: 100%; height: 46px; }
+.mcard .foot { display: flex; gap: 10px; white-space: nowrap; align-items: center; font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.mcard .foot b { color: var(--text-primary); }
+.mcard .foot .delta { margin-left: auto; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+/* tables */
+.table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-th, td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
-th { color: var(--text-secondary); font-weight: 500; font-size: 12px; position: sticky; top: 0; background: var(--surface-1); cursor: pointer; }
-th:first-child, td:first-child, th.l, td.l { text-align: left; }
-.table-wrap { overflow-x: auto; max-height: 460px; }
-.muted { color: var(--text-muted); font-size: 12px; }
-.status { display: inline-flex; align-items: center; gap: 6px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.dot.on { background: var(--good); } .dot.off { background: var(--critical); }
-.chip { font-size: 12px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-secondary); }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: -4px 0 10px; font-size: 12px; color: var(--text-secondary); }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-.bar-cell { width: 120px; } .bar-cell div { height: 8px; background: var(--accent); border-radius: 0 4px 4px 0; }
-#toast { position: fixed; bottom: 20px; right: 20px; background: var(--text-primary); color: var(--surface-1);
-  padding: 10px 14px; border-radius: 8px; display: none; max-width: 360px; }
-.user { font-size: 12px; color: var(--text-muted); }
-#custom { display: none; gap: 6px; align-items: center; }
-@media (max-width: 1100px) { .tiles { grid-template-columns: repeat(3, 1fr); }
-  .span-8, .span-7, .span-5, .span-4 { grid-column: span 12; } }
-@media (max-width: 640px) { header { position: static; } header, main { padding-left: 16px; padding-right: 16px; }
-  .tiles { grid-template-columns: repeat(2, 1fr); } .controls { margin-left: 0; } .tile .value { font-size: 20px; } }
+th, td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+th { color: var(--text-muted); font-weight: 500; font-size: 12px; cursor: pointer; user-select: none; }
+th:first-child, td:first-child, .l { text-align: left; }
+tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
+.up { color: var(--critical-text); } .down { color: var(--good-text); }
+.minibar { width: 110px; } .minibar div { height: 6px; border-radius: 3px; background: var(--accent); }
+
+/* reports */
+.preview { width: 100%; height: 720px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
+.stack { display: grid; gap: 16px; align-content: start; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; font-size: 13px; }
+.kv span:nth-child(odd) { color: var(--text-secondary); }
+.status-chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-secondary); }
+.status-chip.sent { background: var(--good-soft); color: var(--good-text); }
+.status-chip.failed { background: var(--critical-soft); color: var(--critical-text); }
+
+/* ---------- drawer ---------- */
+.scrim { position: fixed; inset: 0; background: rgba(10,10,8,.35); z-index: 40; opacity: 0; pointer-events: none; transition: opacity .2s; }
+.scrim.open { opacity: 1; pointer-events: auto; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--bg); z-index: 50; box-shadow: var(--shadow-lg);
+  transform: translateX(100%); transition: transform .25s cubic-bezier(.2,.8,.2,1); display: flex; flex-direction: column; }
+.drawer.open { transform: none; }
+.drawer header { display: flex; align-items: center; gap: 12px; padding: 18px 20px; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+.drawer header h3 { margin: 0; font-size: 18px; letter-spacing: -.01em; }
+.drawer header p { margin: 2px 0 0; font-size: 12px; color: var(--text-muted); }
+.drawer header .icon-btn { margin-left: auto; }
+.drawer .body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 32px; display: grid; grid-auto-rows: max-content; gap: 16px; align-content: start; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+.stats div { background: var(--surface-1); padding: 10px 12px; }
+.stats > div > span { display: block; font-size: 11px; color: var(--text-muted); }
+.stats b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.livegrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.livegrid div { background: var(--surface-2); border-radius: 10px; padding: 8px 10px; }
+.livegrid > div > span { display: block; font-size: 11px; color: var(--text-muted); }
+.livegrid b { font-variant-numeric: tabular-nums; }
+
+#toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; z-index: 70;
+  background: var(--text-primary); color: var(--surface-1); padding: 10px 16px; border-radius: 12px; box-shadow: var(--shadow-lg);
+  transition: opacity .2s, transform .2s; pointer-events: none; max-width: calc(100% - 32px); }
+#toast.show { opacity: 1; transform: translateX(-50%); }
+
+@media (max-width: 1180px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .c8, .c7, .c5, .c4 { grid-column: span 12; } }
+@media (max-width: 760px) {
+  .appbar { flex-wrap: wrap; padding: 10px 16px; gap: 10px; position: static; }
+  nav.tabs { order: 3; width: 100%; } nav.tabs button { flex: 1; justify-content: center; }
+  .brand small { max-width: 160px; }
+  .toolbar, main { padding-left: 16px; padding-right: 16px; }
+  .toolbar h1 { width: 100%; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .kpi .value { font-size: 22px; } .kpi { min-height: 130px; }
+  .stats { grid-template-columns: repeat(2, 1fr); } .livegrid { grid-template-columns: repeat(3, 1fr); }
+  .heat { grid-template-columns: 44px repeat(24, minmax(0, 1fr)); gap: 1px; }
+  .user-chip .uname { display: none; }
+  .search { min-width: 0; flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
-<header>
-  <div>
-    <h1>Flexpower EMS Kit</h1>
-    <div class="site" id="site">&nbsp;</div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></symbol>
+  <symbol id="i-coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .9-3 2s1 1.7 3 2 3 .9 3 2-1.3 2-3 2c-1.4 0-2.6-.6-3-1.6M12 6v2M12 16v2"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 18a9 9 0 1 1 16 0"/><path d="m12 14 4-5"/><circle cx="12" cy="14" r="1.2"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M5 19c0-9 6-14 15-14 0 9-5 15-14 15"/><path d="M5 19c3-4 6-6 10-8"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18 9 12l6-6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></symbol>
+  <symbol id="i-tap" viewBox="0 0 24 24"><path d="M9 11V5a2 2 0 1 1 4 0v6m0-1a2 2 0 1 1 4 0v3a7 7 0 0 1-7 7 6 6 0 0 1-5-3l-2-4a1.6 1.6 0 0 1 2.7-1.7L9 15"/></symbol>
+  <symbol id="i-trend-up" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8M15 7h6v6"/></symbol>
+  <symbol id="i-trend-down" viewBox="0 0 24 24"><path d="m3 7 6 6 4-4 8 8M15 17h6v-6"/></symbol>
+  <symbol id="i-crown" viewBox="0 0 24 24"><path d="m3 8 4 4 5-7 5 7 4-4-2 11H5z"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20zM12 10v4M12 17v.5"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5zM3 13l9 5 9-5"/></symbol>
+</svg>
+
+<header class="appbar">
+  <div class="brand">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></div>
+    <div><b>Flexpower EMS Kit</b><small id="siteName">&nbsp;</small></div>
   </div>
-  <span class="chip" id="liveChip">connecting…</span>
-  <div class="controls">
-    <select id="period" aria-label="Period"></select>
-    <span id="custom">
-      <input type="date" id="from" aria-label="From"> – <input type="date" id="to" aria-label="To">
-      <button id="applyCustom">Apply</button>
-    </span>
-    <div class="seg" role="group" aria-label="Break down by">
-      <button id="byMeter" aria-pressed="false">By meter</button>
-      <button id="byGroup" aria-pressed="true">By area</button>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" data-tab="overview" aria-selected="true"><svg class="i"><use href="#i-grid"/></svg>Overview</button>
+    <button role="tab" data-tab="machines" aria-selected="false"><svg class="i"><use href="#i-cpu"/></svg>Machines</button>
+    <button role="tab" data-tab="reports" aria-selected="false"><svg class="i"><use href="#i-mail"/></svg>Reports</button>
+  </nav>
+  <div class="bar-right">
+    <span class="pill" id="livePill"><span class="pulse"></span><span>Connecting…</span></span>
+    <button class="icon-btn" id="themeBtn" title="Theme" aria-label="Switch theme"><svg class="i"><use href="#i-auto"/></svg></button>
+    <div class="user-chip" id="userChip" hidden>
+      <span class="avatar" id="avatar">?</span><span class="uname" id="userName"></span>
+      <button id="logoutBtn">Sign out</button>
     </div>
-    <button id="exportBtn" title="Download the table below as CSV">Export CSV</button>
-    <button id="previewBtn" title="Open last month's email report">Report preview</button>
-    <button id="sendBtn" class="primary" hidden>Send report…</button>
-    <span class="user" id="userName"></span>
-    <button id="logoutBtn" hidden>Sign out</button>
   </div>
 </header>
 
+<div class="toolbar">
+  <h1 id="pageTitle">Overview</h1>
+  <button class="btn ghost" id="backBtn" hidden><svg class="i"><use href="#i-back"/></svg><span>Back</span></button>
+  <div class="periods" id="periods" role="group" aria-label="Period">
+    <button data-p="today">Today</button>
+    <button data-p="this_week">Week</button>
+    <button data-p="this_month">Month</button>
+    <button data-p="this_year">Year</button>
+    <select id="morePeriods" aria-label="More periods">
+      <option value="">More…</option>
+      <option value="yesterday">Yesterday</option>
+      <option value="last_week">Last week</option>
+      <option value="last_month">Last month</option>
+      <option value="last_7_days">Last 7 days</option>
+      <option value="last_30_days">Last 30 days</option>
+      <option value="custom">Custom range…</option>
+    </select>
+  </div>
+  <span class="custom" id="custom">
+    <input type="date" id="from" aria-label="From"><span>–</span><input type="date" id="to" aria-label="To">
+    <button class="btn" id="applyCustom">Apply</button>
+  </span>
+  <span class="range" id="rangeLabel"></span>
+</div>
+
 <main>
-  <section class="tiles">
-    <div class="card tile"><div class="label">Energy</div><div class="value" id="tEnergy">–</div><div class="note" id="tEnergyNote">&nbsp;</div></div>
-    <div class="card tile"><div class="label">Cost</div><div class="value" id="tCost">–</div><div class="note" id="tCostNote">&nbsp;</div></div>
-    <div class="card tile"><div class="label">Peak demand</div><div class="value" id="tPeak">–</div><div class="note" id="tPeakNote">&nbsp;</div></div>
-    <div class="card tile"><div class="label">Load right now</div><div class="value" id="tLive">–</div><div class="note" id="tLiveNote">&nbsp;</div></div>
-    <div class="card tile"><div class="label">CO₂</div><div class="value" id="tCo2">–</div><div class="note" id="tCo2Note">&nbsp;</div></div>
+  <!-- ======================= OVERVIEW ======================= -->
+  <section id="tab-overview" class="grid" role="tabpanel">
+    <div class="kpis">
+      <div class="card kpi has-spark">
+        <div class="top"><span class="ico"><svg class="i"><use href="#i-bolt"/></svg></span>Energy used</div>
+        <div class="value skeleton" id="kEnergy">00,000 kWh</div>
+        <div class="note" id="kEnergyNote"></div>
+        <canvas class="spark" id="sparkEnergy" aria-hidden="true"></canvas>
+      </div>
+      <div class="card kpi">
+        <div class="top"><span class="ico"><svg class="i"><use href="#i-coin"/></svg></span>Cost</div>
+        <div class="value skeleton" id="kCost">000,000</div>
+        <div class="note" id="kCostNote"></div>
+        <div class="compare" id="kCostCompare"></div>
+      </div>
+      <div class="card kpi">
+        <div class="top"><span class="ico"><svg class="i"><use href="#i-gauge"/></svg></span>Peak demand</div>
+        <div class="value skeleton" id="kPeak">00.0 kW</div>
+        <div class="note" id="kPeakNote"></div>
+        <div class="compare" id="kPeakCompare"></div>
+      </div>
+      <div class="card kpi has-spark">
+        <div class="top"><span class="ico"><svg class="i"><use href="#i-pulse"/></svg></span>Load right now</div>
+        <div class="value skeleton" id="kLive">00.0 kW</div>
+        <div class="note" id="kLiveNote"></div>
+        <canvas class="spark" id="sparkLive" aria-hidden="true"></canvas>
+      </div>
+      <div class="card kpi">
+        <div class="top"><span class="ico"><svg class="i"><use href="#i-leaf"/></svg></span>CO₂ emissions</div>
+        <div class="value skeleton" id="kCo2">0.00 t</div>
+        <div class="note" id="kCo2Note"></div>
+        <div class="compare" id="kCo2Compare"></div>
+      </div>
+    </div>
+
+    <div class="card c8">
+      <div class="card-head">
+        <div><h2>Consumption</h2><p id="tsSub">kWh</p></div>
+        <div class="tools">
+          <div class="seg" role="group" aria-label="Break down by">
+            <button data-by="group" aria-pressed="true">By area</button><button data-by="meter" aria-pressed="false">By machine</button>
+          </div>
+          <div class="seg" role="group" aria-label="Chart style">
+            <button data-style="bar" aria-pressed="true">Bars</button><button data-style="line" aria-pressed="false">Lines</button>
+          </div>
+        </div>
+      </div>
+      <div class="legend" id="tsLegend"></div>
+      <div class="chart"><canvas id="tsChart" aria-label="Consumption over time"></canvas></div>
+      <div class="hint" id="tsHint"><svg class="i"><use href="#i-tap"/></svg>Tap a legend item to hide it · tap a bar to zoom in</div>
+    </div>
+
+    <div class="card c4">
+      <div class="card-head"><div><h2>Key findings</h2><p id="findingsSub">What stands out in this period</p></div></div>
+      <ul class="insights" id="insights"><li class="skeleton" style="height:60px"></li><li class="skeleton" style="height:60px"></li><li class="skeleton" style="height:60px"></li></ul>
+    </div>
+
+    <div class="card c7">
+      <div class="card-head">
+        <div><h2>Top consumers</h2><p>kWh by machine in this period</p></div>
+        <div class="tools"><span class="hint"><svg class="i"><use href="#i-tap"/></svg>Tap for details</span></div>
+      </div>
+      <div class="chart" id="rankWrap"><canvas id="rankChart" aria-label="Consumption by machine"></canvas></div>
+    </div>
+
+    <div class="card c5">
+      <div class="card-head"><div><h2>Share by area</h2><p id="shareSub">Sub-metered energy</p></div></div>
+      <div class="sharebar" id="shareBar"></div>
+      <div class="share-list" id="shareList"></div>
+    </div>
+
+    <div class="card c8">
+      <div class="card-head">
+        <div><h2>When energy is used</h2><p>kWh per hour, each row is a day</p></div>
+        <div class="tools"><span class="hint"><svg class="i"><use href="#i-tap"/></svg>Tap a day to zoom in</span></div>
+      </div>
+      <div id="heat"></div>
+    </div>
+
+    <div class="card c4">
+      <div class="card-head"><div><h2>Typical day</h2><p>Average site load by hour</p></div></div>
+      <div class="legend" id="profLegend"></div>
+      <div class="chart sm"><canvas id="profChart" aria-label="Average load by hour of day"></canvas></div>
+    </div>
   </section>
 
-  <section class="card span-8">
-    <h2>Consumption over time <span class="sub" id="tsSub"></span></h2>
-    <div class="legend" id="tsLegend"></div>
-    <div class="chart tall"><canvas id="tsChart" aria-label="Consumption over time"></canvas></div>
+  <!-- ======================= MACHINES ======================= -->
+  <section id="tab-machines" role="tabpanel" hidden>
+    <div class="mtools">
+      <label class="search"><svg class="i"><use href="#i-search"/></svg><input id="mSearch" placeholder="Search machines" aria-label="Search machines"></label>
+      <div class="chips" id="groupChips"></div>
+      <div class="seg" role="group" aria-label="View" style="margin-left:auto">
+        <button data-view="cards" aria-pressed="true">Cards</button><button data-view="table" aria-pressed="false">Table</button>
+      </div>
+    </div>
+    <div class="mgrid" id="mGrid"></div>
+    <div class="card" id="mTableCard" hidden>
+      <div class="table-wrap"><table id="mTable"></table></div>
+      <p class="hint" id="mTableNote" style="margin-top:10px"></p>
+    </div>
   </section>
 
-  <section class="card span-4">
-    <h2>Key findings</h2>
-    <ul class="insights" id="insights"><li class="muted">Loading…</li></ul>
-  </section>
-
-  <section class="card span-7">
-    <h2>Who uses the most <span class="sub">kWh in period</span></h2>
-    <div class="chart" id="rankWrap"><canvas id="rankChart" aria-label="Consumption by meter"></canvas></div>
-  </section>
-
-  <section class="card span-5">
-    <h2>Typical day <span class="sub">average site kW by hour</span></h2>
-    <div class="legend" id="profLegend"></div>
-    <div class="chart"><canvas id="profChart" aria-label="Average load by hour of day"></canvas></div>
-  </section>
-
-  <section class="card span-12">
-    <h2>Meters in this period</h2>
-    <div class="table-wrap"><table id="meterTable"></table></div>
-    <p class="muted" id="tableNote"></p>
-  </section>
-
-  <section class="card span-12">
-    <h2>Live readings <span class="sub" id="liveSub"></span></h2>
-    <div class="table-wrap"><table id="liveTable"></table></div>
+  <!-- ======================= REPORTS ======================= -->
+  <section id="tab-reports" class="grid" role="tabpanel" hidden>
+    <div class="card c8">
+      <div class="card-head">
+        <div><h2>Email report preview</h2><p>Exactly what recipients receive</p></div>
+        <div class="tools">
+          <div class="seg" role="group" aria-label="Report">
+            <button data-kind="daily" aria-pressed="false">Daily</button><button data-kind="weekly" aria-pressed="false">Weekly</button><button data-kind="monthly" aria-pressed="true">Monthly</button>
+          </div>
+          <button class="btn primary" id="sendNow" hidden><svg class="i"><use href="#i-mail"/></svg>Send now</button>
+        </div>
+      </div>
+      <iframe class="preview" id="preview" title="Report preview"></iframe>
+    </div>
+    <div class="c4 stack">
+      <div class="card">
+        <div class="card-head"><div><h2>Download data</h2><p id="dlSub">For the selected period</p></div></div>
+        <div style="display:grid;gap:8px">
+          <button class="btn" data-dl="summary"><svg class="i"><use href="#i-down"/></svg>Totals by machine (CSV)</button>
+          <button class="btn" data-dl="timeseries"><svg class="i"><use href="#i-down"/></svg>Consumption over time (CSV)</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2>Schedule</h2><p>Set in config.yaml</p></div></div>
+        <div class="kv" id="schedule"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2>Recent sends</h2></div></div>
+        <div class="table-wrap"><table id="reportLog"></table></div>
+      </div>
+    </div>
   </section>
 </main>
-<div id="toast" role="status"></div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="dTitle" role="dialog">
+  <header>
+    <div><h3 id="dTitle"></h3><p id="dSub"></p></div>
+    <button class="icon-btn" id="dClose" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+  </header>
+  <div class="body">
+    <div class="stats" id="dStats"></div>
+    <div class="card"><div class="card-head"><div><h2>Consumption</h2><p id="dTsSub"></p></div></div><div class="chart sm"><canvas id="dTs"></canvas></div></div>
+    <div class="card"><div class="card-head"><div><h2>Typical day</h2><p>Average kW by hour</p></div></div><div class="legend" id="dProfLegend"></div><div class="chart sm"><canvas id="dProf"></canvas></div></div>
+    <div class="card"><div class="card-head"><div><h2>Live</h2><p id="dLiveSub"></p></div></div><div class="livegrid" id="dLive"></div><div class="chart sm" style="height:160px;margin-top:12px"><canvas id="dRecent"></canvas></div></div>
+  </div>
+</aside>
+<div id="tip" role="tooltip"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/static/chart.umd.js"></script>
 <script>
 "use strict";
+/* ============================== utilities ============================== */
 const $ = (id) => document.getElementById(id);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const nf = (v, d = 0) => v == null || isNaN(v) ? "–" : Number(v).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const MAX_SERIES = 7; // past seven, the rest fold into "Other"
+const icon = (name) => `<svg class="i"><use href="#i-${name}"/></svg>`;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+                set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
+const MAX_SERIES = 7; // categorical slots; anything past this folds into "Other"
 
-let CFG = null, state = { period: "this_month", from: null, to: null, by: "group" }, charts = {}, lastSummary = null;
-const colorOf = {}; // series name -> slot index, fixed for the session so colours follow the entity
+let CFG = null;
+const D = {};                 // cached API data, so theme changes re-render without refetching
+const charts = {};
+const state = { period: store.get("ems.period") || "this_month", from: null, to: null, by: "group", style: "bar",
+                tab: "overview", history: [], hidden: new Set(), group: "All", search: "", view: "cards", kind: "monthly",
+                sortKey: "kwh", sortDir: -1, drawer: null };
 
-function slotColor(name) {
+const slots = { group: {}, meter: {} }; // entity -> slot, fixed for the session
+function slotColor(kind, name) {
   if (name === "Other") return css("--s-other");
-  if (!(name in colorOf)) colorOf[name] = Object.keys(colorOf).length % MAX_SERIES;
-  return css(`--s${colorOf[name] + 1}`);
+  const m = slots[kind];
+  if (!(name in m)) m[name] = Object.keys(m).length;
+  return m[name] < MAX_SERIES ? css(`--s${m[name] + 1}`) : css("--s-other");
 }
 
 async function api(path, opts = {}) {
@@ -174,193 +523,502 @@ async function api(path, opts = {}) {
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return r.json();
 }
-// State-changing requests carry the session's CSRF token.
 const post = (path) => api(path, { method: "POST", headers: { "X-CSRF-Token": CFG.csrf } });
 function rangeQuery() {
-  return state.period === "custom" && state.from && state.to
-    ? `start=${state.from}&end=${state.to}` : `period=${state.period}`;
+  return state.period === "custom" && state.from && state.to ? `start=${state.from}&end=${state.to}` : `period=${state.period}`;
 }
-function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 5000); }
-function changeHtml(pct, label = "vs previous") {
-  if (pct == null) return `<span class="muted">no previous data</span>`;
-  const cls = pct > 0 ? "up" : "down";
-  return `<span class="${cls}">${pct > 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}%</span> ${label}`;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 4000); }
+function deltaHtml(pct, invert = false) {
+  if (pct == null) return `<span class="delta flat">no prior data</span>`;
+  const up = pct > 0, cls = Math.abs(pct) < 0.5 ? "flat" : (up !== invert ? "up" : "down");
+  return `<span class="delta ${cls}">${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}%</span>`;
+}
+function fmtTime(iso, opts) { return new Date(iso).toLocaleString(undefined, { timeZone: CFG.timezone, ...opts }); }
+
+/* animated numbers */
+function animate(el, to, fmt) {
+  el.classList.remove("skeleton");
+  const from = el._v ?? 0; el._v = to;
+  if (reduceMotion || from === to || to == null) { el.innerHTML = fmt(to); return; }
+  const t0 = performance.now(), dur = 650;
+  const step = (t) => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.innerHTML = fmt(from + (to - from) * e); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
 }
 
-Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-Chart.defaults.font.size = 12;
+/* tiny canvas sparkline (no axes, decorative) */
+function spark(canvas, values, color) {
+  const dpr = devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w || !h) return;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const g = canvas.getContext("2d"); g.scale(dpr, dpr); g.clearRect(0, 0, w, h);
+  const v = values.filter(x => x != null);
+  if (v.length < 2) return;
+  const max = Math.max(...v), min = Math.min(0, ...v), pad = 4;
+  const X = (i) => (i / (values.length - 1)) * w, Y = (x) => h - pad - ((x - min) / (max - min || 1)) * (h - pad * 2);
+  g.beginPath(); values.forEach((x, i) => { if (x == null) return; i ? g.lineTo(X(i), Y(x)) : g.moveTo(X(i), Y(x)); });
+  g.strokeStyle = color; g.lineWidth = 2; g.lineJoin = "round"; g.stroke();
+  g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+  const grad = g.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, color + "40"); grad.addColorStop(1, color + "00");
+  g.fillStyle = grad; g.fill();
+}
+
+/* tooltip for HTML visuals (heatmap, share bar) */
+const tip = $("tip");
+function showTip(e, html) { tip.innerHTML = html; tip.style.display = "block";
+  const r = tip.getBoundingClientRect(); let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14; if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px"; }
+function hideTip() { tip.style.display = "none"; }
+
+/* Chart.js defaults from the current theme */
 function baseOptions() {
-  Chart.defaults.color = css("--text-secondary");
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = css("--text-muted");
   return {
-    responsive: true, maintainAspectRatio: false, animation: false,
+    responsive: true, maintainAspectRatio: false, animation: reduceMotion ? false : { duration: 450 },
     interaction: { mode: "index", intersect: false },
     plugins: { legend: { display: false },
       tooltip: { backgroundColor: css("--surface-1"), titleColor: css("--text-primary"), bodyColor: css("--text-secondary"),
-                 borderColor: css("--border"), borderWidth: 1, padding: 10, boxPadding: 4 } },
+        footerColor: css("--text-primary"), borderColor: css("--border"), borderWidth: 1, padding: 10, boxPadding: 4,
+        cornerRadius: 10, usePointStyle: true } },
     scales: {
-      x: { grid: { display: false }, border: { color: css("--border") }, ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 12 } },
-      y: { grid: { color: css("--grid") }, border: { display: false }, beginAtZero: true },
+      x: { grid: { display: false }, border: { color: css("--border") }, ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 14 } },
+      y: { grid: { color: css("--grid") }, border: { display: false }, beginAtZero: true, ticks: { maxTicksLimit: 6 } },
     },
   };
 }
-function legend(el, names) { $(el).innerHTML = names.map(n => `<span><i style="background:${slotColor(n)}"></i>${esc(n)}</span>`).join(""); }
+function mount(key, canvas, config) { charts[key]?.destroy(); charts[key] = new Chart(canvas, config); return charts[key]; }
 
-// ------------------------------------------------------------------ init
-async function init() {
-  CFG = await api("/api/config");
-  $("site").textContent = `${CFG.site} · ${CFG.meters.length} meters · ${CFG.timezone}`;
-  document.title = `${CFG.site} – Flexpower EMS Kit`;
-  const sel = $("period");
-  sel.innerHTML = Object.entries(CFG.periods).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("") + `<option value="custom">Custom range…</option>`;
-  sel.value = state.period;
-  sel.onchange = () => { state.period = sel.value; $("custom").style.display = sel.value === "custom" ? "inline-flex" : "none"; if (sel.value !== "custom") loadPeriod(); };
-  $("applyCustom").onclick = () => { state.from = $("from").value; state.to = $("to").value; if (state.from && state.to) loadPeriod(); };
-  $("byMeter").onclick = () => setBy("meter"); $("byGroup").onclick = () => setBy("group");
-  $("exportBtn").onclick = () => location.href = `/api/export.csv?kind=summary&${rangeQuery()}`;
-  $("previewBtn").onclick = () => window.open("/api/reports/preview?kind=monthly", "_blank");
-  if (CFG.user.role === "admin") { $("sendBtn").hidden = false; $("sendBtn").onclick = sendReport; }
-  if (CFG.login_required) {
-    $("userName").textContent = `${CFG.user.username} · ${CFG.user.role}`;
-    $("logoutBtn").hidden = false;
-    $("logoutBtn").onclick = async () => { await post("/api/logout").catch(() => {}); location.replace("/login"); };
-  }
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (lastSummary) loadPeriod(); });
-  await Promise.all([loadPeriod(), loadLive()]);
-  setInterval(loadLive, Math.max(10, CFG.poll_seconds) * 1000);
-  setInterval(loadPeriod, 5 * 60 * 1000);
+/* ============================== theme ============================== */
+const THEMES = ["auto", "light", "dark"];
+function applyTheme(t) {
+  if (t === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  $("themeBtn").innerHTML = icon(t === "auto" ? "auto" : t === "light" ? "sun" : "moon");
+  $("themeBtn").title = `Theme: ${t}`;
 }
-function setBy(by) { state.by = by; $("byMeter").setAttribute("aria-pressed", by === "meter"); $("byGroup").setAttribute("aria-pressed", by === "group"); loadTimeseries(); }
+$("themeBtn").onclick = () => {
+  const cur = store.get("ems.theme") || "auto", next = THEMES[(THEMES.indexOf(cur) + 1) % 3];
+  store.set("ems.theme", next === "auto" ? null : next); applyTheme(next); renderAll(); toast(`Theme: ${next}`);
+};
+applyTheme(store.get("ems.theme") || "auto");
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => renderAll());
+
+/* ============================== navigation ============================== */
+function setTab(tab) {
+  state.tab = tab;
+  $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === tab));
+  ["overview", "machines", "reports"].forEach(t => $(`tab-${t}`).hidden = t !== tab);
+  $("pageTitle").textContent = { overview: "Overview", machines: "Machines", reports: "Reports" }[tab];
+  $(`tab-${tab}`).classList.remove("fade-in"); void $(`tab-${tab}`).offsetWidth; $(`tab-${tab}`).classList.add("fade-in");
+  if (location.hash !== `#${tab}`) history.replaceState(null, "", `#${tab}`);
+  renderAll();
+  if (tab === "reports") loadReports();
+}
+$$("nav.tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+
+function syncPeriodControls() {
+  $$("#periods button").forEach(b => b.setAttribute("aria-pressed", b.dataset.p === state.period));
+  const more = $("morePeriods"), inMore = [...more.options].some(o => o.value && o.value === state.period);
+  more.value = inMore ? state.period : ""; more.classList.toggle("active", inMore);
+  $("custom").style.display = state.period === "custom" ? "inline-flex" : "none";
+  $("backBtn").hidden = state.history.length === 0;
+}
+function setPeriod(p, from, to, { drill = false } = {}) {
+  if (drill) state.history.push({ period: state.period, from: state.from, to: state.to });
+  else state.history = [];
+  state.period = p; state.from = from || null; state.to = to || null;
+  if (p !== "custom") store.set("ems.period", p);
+  if (p === "custom" && from) { $("from").value = from; $("to").value = to; }
+  syncPeriodControls(); loadPeriod();
+  if (state.tab === "reports") loadReports();
+}
+$$("#periods button").forEach(b => b.onclick = () => setPeriod(b.dataset.p));
+$("morePeriods").onchange = (e) => { const v = e.target.value; if (!v) return;
+  if (v === "custom") { state.period = "custom"; syncPeriodControls(); $("from").focus(); } else setPeriod(v); };
+$("applyCustom").onclick = () => { const f = $("from").value, t = $("to").value;
+  if (f && t) setPeriod("custom", f <= t ? f : t, f <= t ? t : f); };
+$("backBtn").onclick = () => { const prev = state.history.pop(); if (!prev) return;
+  const h = state.history; setPeriod(prev.period, prev.from, prev.to); state.history = h; syncPeriodControls(); };
+function drillToDay(isoDate) { setPeriod("custom", isoDate, isoDate, { drill: true }); scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" }); }
+
+/* ============================== data loading ============================== */
+function isSingleDay() { return state.period === "custom" && state.from && state.from === state.to || ["today", "yesterday"].includes(state.period); }
 
 async function loadPeriod() {
-  try { await Promise.all([loadSummary(), loadTimeseries(), loadProfile()]); }
-  catch (e) { toast("Could not load data: " + e.message); }
+  const q = rangeQuery(), bucket = isSingleDay() ? "&bucket=hour" : "";
+  try {
+    const [summary, tsGroup, tsMeter, profile, heat] = await Promise.all([
+      api(`/api/summary?${q}`), api(`/api/timeseries?${q}&by=group${bucket}`), api(`/api/timeseries?${q}&by=meter${bucket}`),
+      api(`/api/profile?${q}`), api(`/api/heatmap?${q}`).catch(() => null)]);
+    Object.assign(D, { summary, tsGroup, tsMeter, profile, heat });
+    if (!D._slotsSeeded) {  // seed colour slots by size so the biggest loads get the first colours
+      summary.groups.forEach(g => slotColor("group", g.group)); summary.meters.forEach(m => slotColor("meter", m.name));
+      D._slotsSeeded = true;
+    }
+    renderAll();
+    if (state.drawer) openDrawer(state.drawer, true);
+  } catch (e) { if (e.message !== "signed out") toast("Could not load data: " + e.message); }
+}
+async function loadLive() {
+  try {
+    const [live, recent] = await Promise.all([api("/api/live"), api("/api/recent?minutes=120")]);
+    Object.assign(D, { live, recent });
+    renderLive();
+    if (state.tab === "machines") renderMachines();
+    if (state.drawer) renderDrawerLive(state.drawer);
+  } catch (e) { const p = $("livePill"); p.innerHTML = `<span class="pulse off"></span><span>Connection lost</span>`; }
 }
 
-// ------------------------------------------------------------------ summary
-async function loadSummary() {
-  const s = await api(`/api/summary?${rangeQuery()}`);
-  lastSummary = s;
-  const t = s.totals, cur = s.currency;
-  $("tEnergy").textContent = `${nf(t.kwh)} kWh`;
-  $("tEnergyNote").innerHTML = changeHtml(t.change_pct, t.compare_partial ? "vs same point last period" : "vs previous");
-  $("tCost").textContent = `${cur} ${nf(t.cost)}`;
-  $("tCostNote").textContent = t.kwh ? `avg ${cur} ${nf(t.avg_rate, 2)} per kWh` : "";
-  $("tPeak").textContent = `${nf(t.peak_demand_kw, 1)} kW`;
-  $("tPeakNote").textContent = t.peak_demand_at ? new Date(t.peak_demand_at).toLocaleString(undefined, { timeZone: CFG.timezone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
-  $("tCo2").textContent = `${nf(t.co2_kg / 1000, 2)} t`;
-  $("tCo2Note").textContent = s.period.label;
-  $("insights").innerHTML = s.insights.map(i => `<li>${esc(i)}</li>`).join("") || `<li class="muted">Nothing notable.</li>`;
-  renderRanking(s); renderMeterTable(s);
+function renderAll() {
+  if (!CFG) return;
+  if (D.summary) {
+    const p = D.summary.period, end = new Date(new Date(p.end).getTime() - 1);
+    const o = { timeZone: CFG.timezone, day: "numeric", month: "short", year: "numeric" };
+    const s = new Date(p.start).toLocaleDateString(undefined, o), e = end.toLocaleDateString(undefined, o);
+    $("rangeLabel").textContent = s === e ? s : `${s} – ${e}`;
+    $("dlSub").textContent = `For ${p.label ? p.label.charAt(0).toLowerCase() + p.label.slice(1) : "the selected period"}`;
+  }
+  if (state.tab === "overview" && D.summary) { renderKpis(); renderTimeseries(); renderInsights(); renderRanking(); renderShare(); renderHeat(); renderProfile(); }
+  if (state.tab === "machines" && D.summary) renderMachines();
+  if (D.live) renderLive();
 }
 
-function renderRanking(s) {
-  const rows = s.meters.filter(m => m.kwh > 0);
-  $("rankWrap").style.height = Math.max(200, rows.length * 38 + 50) + "px";
-  const opts = baseOptions();
-  opts.indexAxis = "y";
-  opts.interaction = { mode: "nearest", axis: "y", intersect: false };
-  opts.scales.x = { grid: { color: css("--grid") }, border: { display: false }, beginAtZero: true, title: { display: true, text: "kWh" } };
-  opts.scales.y = { grid: { display: false }, border: { color: css("--border") } };
-  opts.plugins.tooltip.callbacks = { label: (c) => { const m = rows[c.dataIndex]; return [` ${nf(m.kwh)} kWh · ${m.share_pct}% of sub-metered`, ` ${s.currency} ${nf(m.cost)} · peak ${nf(m.peak_kw, 1)} kW`]; } };
-  const data = { labels: rows.map(m => m.name), datasets: [{ data: rows.map(m => m.kwh), backgroundColor: css("--accent"),
-    borderRadius: { topRight: 4, bottomRight: 4 }, borderSkipped: "start", barPercentage: 0.7, categoryPercentage: 0.9 }] };
-  charts.rank?.destroy();
-  charts.rank = new Chart($("rankChart"), { type: "bar", data, options: opts });
+/* ============================== overview ============================== */
+const trimFuture = (vals) => { let n = vals.length; while (n > 1 && !vals[n - 1]) n--; return vals.slice(0, n); };
+function siteDaily(ts) {
+  const src = Object.keys(ts.mains).length ? ts.mains : ts.series;
+  return trimFuture(ts.labels.map((_, i) => Object.values(src).reduce((a, v) => a + v[i], 0)));
+}
+function compareBars(el, cur, prev, fmt, label = "previous") {
+  if (prev == null || (!cur && !prev)) { el.innerHTML = ""; return; }
+  const max = Math.max(cur, prev, 1e-9);
+  el.innerHTML = `<div style="display:flex;justify-content:space-between"><span>This period</span><span>${fmt(cur)}</span></div>
+    <div class="track"><div style="width:${cur / max * 100}%;background:var(--accent)"></div></div>
+    <div style="display:flex;justify-content:space-between"><span>${label}</span><span>${fmt(prev)}</span></div>
+    <div class="track"><div style="width:${prev / max * 100}%;background:var(--text-muted)"></div></div>`;
+}
+function renderKpis() {
+  const s = D.summary, t = s.totals, cur = s.currency;
+  const prevLabel = t.compare_partial ? "Same point, previous" : "Previous period";
+  animate($("kEnergy"), t.kwh, v => `${nf(v)}<small>kWh</small>`);
+  $("kEnergyNote").innerHTML = `${deltaHtml(t.change_pct)}<span>${t.compare_partial ? "vs same point last period" : "vs previous period"}</span>`;
+  spark($("sparkEnergy"), siteDaily(D.tsGroup), css("--accent"));
+  animate($("kCost"), t.cost, v => `<small style="margin:0 4px 0 0">${esc(cur)}</small>${nf(v)}`);
+  $("kCostNote").textContent = t.kwh ? `avg ${cur} ${nf(t.avg_rate, 2)} per kWh` : "";
+  compareBars($("kCostCompare"), t.cost, t.prev_cost, v => `${cur} ${nf(v)}`, prevLabel);
+  animate($("kPeak"), t.peak_demand_kw, v => `${nf(v, 1)}<small>kW</small>`);
+  $("kPeakNote").textContent = t.peak_demand_at ? fmtTime(t.peak_demand_at, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "No data yet";
+  const avg = s.mains.length ? s.mains.reduce((a, m) => a + m.avg_kw, 0) : s.meters.reduce((a, m) => a + m.avg_kw, 0);
+  compareBars($("kPeakCompare"), t.peak_demand_kw, avg, v => `${nf(v, 1)} kW`, "Average load");
+  if ($("kPeakCompare").firstChild) $("kPeakCompare").firstElementChild.firstElementChild.textContent = "Peak";
+  animate($("kCo2"), t.co2_kg / 1000, v => `${nf(v, 2)}<small>t</small>`);
+  $("kCo2Note").innerHTML = t.prev_kwh != null ? `${deltaHtml(t.change_pct)}<span>${nf(t.co2_kg)} kg CO₂</span>` : `${nf(t.co2_kg)} kg CO₂`;
+  compareBars($("kCo2Compare"), t.co2_kg / 1000, t.prev_kwh != null ? t.prev_kwh * (t.kwh ? t.co2_kg / t.kwh : 0) / 1000 : null, v => `${nf(v, 2)} t`, prevLabel);
 }
 
-const COLS = [
-  ["name", "Meter", "l"], ["group", "Area", "l"], ["kwh", "kWh"], ["share_pct", "Share"], ["cost", "Cost"],
-  ["peak_kw", "Peak kW"], ["avg_kw", "Avg kW"], ["baseload_kw", "Base load kW"], ["night_pct", "Night use"], ["change_pct", "vs previous"],
-];
-let sortKey = "kwh", sortDir = -1;
-function renderMeterTable(s) {
-  const rows = [...s.meters].sort((a, b) => ((a[sortKey] ?? -1e18) > (b[sortKey] ?? -1e18) ? 1 : -1) * sortDir);
-  const max = Math.max(1, ...s.meters.map(m => m.kwh));
-  const head = `<tr>${COLS.map(([k, l, c]) => `<th class="${c || ""}" data-k="${k}">${l}${sortKey === k ? (sortDir < 0 ? " ↓" : " ↑") : ""}</th>`).join("")}<th class="l"></th></tr>`;
-  const fmt = (m, k) => k === "share_pct" || k === "night_pct" ? `${nf(m[k], 1)}%` : k === "change_pct" ? (m[k] == null ? "–" : `<span class="${m[k] > 0 ? "up" : "down"}">${m[k] > 0 ? "+" : ""}${nf(m[k], 1)}%</span>`)
-    : k === "cost" ? nf(m[k]) : typeof m[k] === "number" ? nf(m[k], k === "kwh" ? 0 : 1) : esc(m[k]);
-  const body = rows.map(m => `<tr>${COLS.map(([k, , c]) => `<td class="${c || ""}">${fmt(m, k)}</td>`).join("")}<td class="bar-cell l"><div style="width:${m.kwh / max * 100}%"></div></td></tr>`).join("");
-  const mains = s.mains.map(m => `<tr><td class="l"><b>${esc(m.name)}</b> <span class="muted">main supply</span></td><td class="l">${esc(m.group)}</td><td>${nf(m.kwh)}</td><td></td><td>${nf(m.cost)}</td><td>${nf(m.peak_kw, 1)}</td><td>${nf(m.avg_kw, 1)}</td><td>${nf(m.baseload_kw, 1)}</td><td>${nf(m.night_pct, 1)}%</td><td>${m.change_pct == null ? "–" : nf(m.change_pct, 1) + "%"}</td><td></td></tr>`).join("");
-  $("meterTable").innerHTML = head + mains + body;
-  $("meterTable").querySelectorAll("th[data-k]").forEach(th => th.onclick = () => { const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : -1; sortKey = k; renderMeterTable(s); });
-  const t = s.totals;
-  $("tableNote").textContent = t.unmetered_kwh != null
-    ? `Sub-meters cover ${nf(t.submetered_kwh)} kWh of ${nf(t.kwh)} kWh supplied; ${nf(t.unmetered_kwh)} kWh is unmetered. Costs use the configured tariff (${s.currency}).`
-    : `Total of all meters: ${nf(t.kwh)} kWh. Costs use the configured tariff (${s.currency}).`;
-}
-
-// ------------------------------------------------------------------ time series
-async function loadTimeseries() {
-  const ts = await api(`/api/timeseries?${rangeQuery()}&by=${state.by}`);
-  const unit = { "15min": "per 15 min", hour: "per hour", day: "per day", month: "per month" }[ts.bucket];
-  $("tsSub").textContent = `kWh ${unit}`;
-  let entries = Object.entries(ts.series).map(([n, v]) => [n, v, v.reduce((a, b) => a + b, 0)]).sort((a, b) => b[2] - a[2]);
+function foldSeries(series, kind) {
+  let entries = Object.entries(series).map(([n, v]) => [n, v, v.reduce((a, b) => a + b, 0)]).sort((a, b) => b[2] - a[2]);
   if (entries.length > MAX_SERIES) {
     const keep = entries.slice(0, MAX_SERIES - 1), rest = entries.slice(MAX_SERIES - 1);
-    const other = ts.labels.map((_, i) => rest.reduce((a, e) => a + e[1][i], 0));
-    entries = [...keep, ["Other", other, 0]];
+    entries = [...keep, ["Other", entries[0][1].map((_, i) => rest.reduce((a, e) => a + e[1][i], 0)), 0]];
   }
-  const names = entries.map(e => e[0]);
-  legend("tsLegend", names);
-  const mainTotal = Object.values(ts.mains)[0];
+  return entries.map(([n, v]) => ({ name: n, values: v, color: slotColor(kind, n) }));
+}
+function renderTimeseries() {
+  const ts = state.by === "group" ? D.tsGroup : D.tsMeter, kind = state.by === "group" ? "group" : "meter";
+  const unit = { "15min": "per 15 minutes", hour: "per hour", day: "per day", month: "per month" }[ts.bucket];
+  $("tsSub").textContent = `kWh ${unit}`;
+  const drillable = ts.bucket === "day" || ts.bucket === "month";
+  $("tsHint").innerHTML = `${icon("tap")}Tap a legend item to hide it${drillable ? " · tap a bar to zoom in" : ""}`;
+  const series = foldSeries(ts.series, kind);
+  $("tsLegend").innerHTML = series.map(s => `<button data-name="${esc(s.name)}" aria-pressed="${!state.hidden.has(s.name)}"><i style="background:${s.color}"></i>${esc(s.name)}</button>`).join("");
+  $$("#tsLegend button").forEach(b => b.onclick = () => {
+    const n = b.dataset.name; state.hidden.has(n) ? state.hidden.delete(n) : state.hidden.add(n);
+    b.setAttribute("aria-pressed", !state.hidden.has(n));
+    const ch = charts.ts, i = ch.data.datasets.findIndex(d => d.label === n);
+    ch.setDatasetVisibility(i, !state.hidden.has(n)); ch.update();
+  });
+  const mainTotal = Object.values(ts.mains)[0], bars = state.style === "bar", surface = css("--surface-1");
   const opts = baseOptions();
-  opts.scales.x.stacked = true; opts.scales.y.stacked = true;
+  opts.scales.x.stacked = bars; opts.scales.y.stacked = bars;
   opts.scales.y.title = { display: true, text: "kWh" };
   opts.plugins.tooltip.itemSort = (a, b) => b.raw - a.raw;
   opts.plugins.tooltip.callbacks = {
     label: (c) => ` ${c.dataset.label}: ${nf(c.raw, 1)} kWh`,
-    footer: (items) => { const i = items[0].dataIndex; const sub = entries.reduce((a, e) => a + e[1][i], 0);
-      return mainTotal ? `Sub-meters ${nf(sub, 1)} kWh · main ${nf(mainTotal[i], 1)} kWh` : `Total ${nf(sub, 1)} kWh`; },
+    footer: (items) => { const i = items[0].dataIndex, sub = series.reduce((a, s) => a + s.values[i], 0);
+      return (mainTotal ? `Sub-meters ${nf(sub, 1)} · main ${nf(mainTotal[i], 1)} kWh` : `Total ${nf(sub, 1)} kWh`) + (drillable ? "\nClick to zoom in" : ""); },
   };
-  const surface = css("--surface-1");
-  const data = { labels: ts.labels, datasets: entries.map(([n, v]) => ({
-    label: n, data: v, backgroundColor: slotColor(n), borderColor: surface, borderWidth: { top: 1 }, borderSkipped: "bottom",
-    barPercentage: 0.85, categoryPercentage: 0.9 })) };
-  charts.ts?.destroy();
-  charts.ts = new Chart($("tsChart"), { type: "bar", data, options: opts });
+  opts.onHover = (e, els) => { e.native.target.style.cursor = drillable && els.length ? "pointer" : "default"; };
+  opts.onClick = (e, els) => {
+    if (!drillable || !els.length) return;
+    const d = ts.iso[els[0].index].slice(0, 10);
+    if (ts.bucket === "day") drillToDay(d);
+    else { const s = new Date(d + "T00:00:00"), last = new Date(s.getFullYear(), s.getMonth() + 1, 0);
+      const pad = (n) => String(n).padStart(2, "0");
+      setPeriod("custom", d, `${last.getFullYear()}-${pad(last.getMonth() + 1)}-${pad(last.getDate())}`, { drill: true });
+      scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" }); }
+  };
+  const datasets = series.map(s => bars
+    ? { label: s.name, data: s.values, backgroundColor: s.color, hoverBackgroundColor: s.color, borderColor: surface,
+        borderWidth: { top: 1.5 }, borderSkipped: "bottom", barPercentage: .82, categoryPercentage: .9, hidden: state.hidden.has(s.name) }
+    : { label: s.name, data: s.values, borderColor: s.color, backgroundColor: s.color, borderWidth: 2, pointRadius: 0,
+        pointHoverRadius: 5, pointHoverBorderColor: surface, pointHoverBorderWidth: 2, tension: .3, hidden: state.hidden.has(s.name) });
+  mount("ts", $("tsChart"), { type: bars ? "bar" : "line", data: { labels: ts.labels, datasets }, options: opts });
+}
+$$("[data-by]").forEach(b => b.onclick = () => { state.by = b.dataset.by; state.hidden.clear();
+  $$("[data-by]").forEach(x => x.setAttribute("aria-pressed", x === b)); renderTimeseries(); });
+$$("[data-style]").forEach(b => b.onclick = () => { state.style = b.dataset.style;
+  $$("[data-style]").forEach(x => x.setAttribute("aria-pressed", x === b)); renderTimeseries(); });
+
+function insightIcon(text) {
+  if (/up \d|rose/i.test(text)) return "trend-up"; if (/down \d/i.test(text)) return "trend-down";
+  if (/largest|top 3/i.test(text)) return "crown"; if (/idle|never drops/i.test(text)) return "plug";
+  if (/22:00|night/i.test(text)) return "moon"; if (/not covered|check meter/i.test(text)) return "alert";
+  if (/peak demand/i.test(text)) return "gauge"; return "bolt";
+}
+function renderInsights() {
+  $("insights").innerHTML = D.summary.insights.map(i => `<li><span class="ico">${icon(insightIcon(i))}</span><span>${esc(i)}</span></li>`).join("")
+    || `<li><span class="ico">${icon("bolt")}</span><span>Nothing notable yet.</span></li>`;
 }
 
-async function loadProfile() {
-  const p = await api(`/api/profile?${rangeQuery()}`);
+function renderRanking() {
+  const s = D.summary, rows = s.meters.filter(m => m.kwh > 0);
+  $("rankWrap").style.height = Math.max(200, rows.length * 40 + 50) + "px";
+  const opts = baseOptions();
+  opts.indexAxis = "y"; opts.interaction = { mode: "nearest", axis: "y", intersect: false };
+  opts.scales.x = { grid: { color: css("--grid") }, border: { display: false }, beginAtZero: true, ticks: { maxTicksLimit: 6 }, title: { display: true, text: "kWh" } };
+  opts.scales.y = { grid: { display: false }, border: { color: css("--border") }, ticks: { color: css("--text-secondary") } };
+  opts.plugins.tooltip.callbacks = { label: (c) => { const m = rows[c.dataIndex];
+    return [` ${nf(m.kwh)} kWh · ${m.share_pct}% of sub-metered`, ` ${s.currency} ${nf(m.cost)} · peak ${nf(m.peak_kw, 1)} kW`, " Click for details"]; } };
+  opts.onHover = (e, els) => { e.native.target.style.cursor = els.length ? "pointer" : "default"; };
+  opts.onClick = (e, els) => { if (els.length) openDrawer(rows[els[0].index].id); };
+  mount("rank", $("rankChart"), { type: "bar", options: opts, data: { labels: rows.map(m => m.name), datasets: [{ data: rows.map(m => m.kwh),
+    backgroundColor: css("--accent"), hoverBackgroundColor: css("--s7"), borderRadius: { topRight: 4, bottomRight: 4 }, borderSkipped: "start",
+    barPercentage: .7, categoryPercentage: .9 }] } });
+}
+
+function renderShare() {
+  const s = D.summary, groups = s.groups.filter(g => g.kwh > 0);
+  let rows = groups;
+  if (groups.length > MAX_SERIES) rows = [...groups.slice(0, MAX_SERIES - 1), groups.slice(MAX_SERIES - 1).reduce((a, g) =>
+    ({ group: "Other", kwh: a.kwh + g.kwh, cost: a.cost + g.cost, share_pct: a.share_pct + g.share_pct }), { group: "Other", kwh: 0, cost: 0, share_pct: 0 })];
+  $("shareSub").textContent = s.totals.unmetered_kwh != null ? `${nf(s.totals.submetered_kwh)} of ${nf(s.totals.kwh)} kWh is sub-metered` : "Sub-metered energy";
+  $("shareBar").innerHTML = rows.map(g => `<div data-g="${esc(g.group)}" style="flex-grow:${g.kwh};background:${slotColor("group", g.group)}"></div>`).join("");
+  $$("#shareBar div").forEach((el, i) => { const g = rows[i];
+    el.onmousemove = (e) => showTip(e, `<b>${esc(g.group)}</b>${nf(g.kwh)} kWh · ${nf(g.share_pct, 1)}%`); el.onmouseleave = hideTip; });
+  $("shareList").innerHTML = rows.map(g => `<div class="share-row"><i style="background:${slotColor("group", g.group)}"></i><span>${esc(g.group)}</span>
+    <span class="num"><b>${nf(g.share_pct, 1)}%</b></span><span class="num">${nf(g.kwh)} kWh · ${esc(s.currency)} ${nf(g.cost)}</span></div>`).join("")
+    || `<p class="hint">No consumption recorded yet.</p>`;
+}
+
+function renderHeat() {
+  const h = D.heat, el = $("heat");
+  if (!h || !h.days.length) { el.innerHTML = `<p class="hint">Choose a period of up to a year to see the heatmap.</p>`; return; }
+  const n = h.days.length, rowH = n <= 8 ? 26 : n <= 35 ? 14 : n <= 95 ? 6 : 3;
+  const ramp = Array.from({ length: 9 }, (_, i) => css(`--h${i}`));
+  const color = (v) => ramp[Math.min(8, Math.floor((v / (h.max || 1)) * 8.999))];
+  const dayFmt = (iso, o) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, o);
+  const labelEvery = n <= 35 ? 1 : n <= 95 ? 7 : 30;
+  let html = "";
+  h.values.forEach((row, i) => {
+    const showLbl = i % labelEvery === 0;
+    html += `<div class="day" style="height:${rowH}px">${showLbl && rowH >= 6 || (labelEvery > 1 && showLbl) ? esc(dayFmt(h.days[i], n <= 35 ? { weekday: "short", day: "numeric" } : { day: "numeric", month: "short" })) : ""}</div>`;
+    row.forEach((v, hr) => { html += v == null ? `<div class="cell empty" style="height:${rowH}px"></div>`
+      : `<div class="cell" data-d="${i}" data-h="${hr}" style="height:${rowH}px;background:${color(v)}"></div>`; });
+  });
+  html += `<div></div>` + Array.from({ length: 24 }, (_, hr) => `<div class="hr">${hr % 3 === 0 ? String(hr).padStart(2, "0") : ""}</div>`).join("");
+  el.innerHTML = `<div class="heat">${html}</div>
+    <div class="heat-legend"><span>Less</span>${ramp.map(c => `<i style="background:${c}"></i>`).join("")}<span>More (max ${nf(h.max, 1)} kWh/h)</span></div>`;
+  const grid = el.firstElementChild;
+  grid.onmousemove = (e) => { const c = e.target.closest(".cell[data-d]"); if (!c) return hideTip();
+    const d = h.days[+c.dataset.d], hr = +c.dataset.h, v = h.values[+c.dataset.d][hr];
+    showTip(e, `<b>${esc(dayFmt(d, { weekday: "short", day: "numeric", month: "short" }))}, ${String(hr).padStart(2, "0")}:00–${String(hr + 1).padStart(2, "0")}:00</b>${nf(v, 1)} kWh · avg ${nf(v, 1)} kW${n > 1 ? "<br>Click to zoom into this day" : ""}`); };
+  grid.onmouseleave = hideTip;
+  grid.onclick = (e) => { const c = e.target.closest(".cell[data-d]"); if (c && n > 1) { hideTip(); drillToDay(h.days[+c.dataset.d]); } };
+}
+
+function profileChart(key, canvas, legendEl, p) {
   const hours = [...Array(24).keys()].map(h => `${String(h).padStart(2, "0")}:00`);
   const sets = [["Weekdays", p.weekday, css("--s1")], ["Weekends", p.weekend, css("--s2")]].filter(s => s[1].some(v => v != null));
-  $("profLegend").innerHTML = sets.map(([n, , c]) => `<span><i style="background:${c}"></i>${n}</span>`).join("");
+  $(legendEl).innerHTML = sets.map(([n, , c]) => `<span class="static"><i style="background:${c}"></i>${n}</span>`).join("");
   const opts = baseOptions();
   opts.scales.y.title = { display: true, text: "kW" };
   opts.plugins.tooltip.callbacks = { label: (c) => ` ${c.dataset.label}: ${nf(c.raw, 1)} kW` };
-  charts.prof?.destroy();
-  charts.prof = new Chart($("profChart"), { type: "line", options: opts, data: { labels: hours, datasets: sets.map(([n, v, c]) => ({
-    label: n, data: v, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.25, spanGaps: true })) } });
+  mount(key, canvas, { type: "line", options: opts, data: { labels: hours, datasets: sets.map(([n, v, c], i) => ({
+    label: n, data: v, borderColor: c, backgroundColor: c + (i ? "00" : "22"), fill: i === 0 ? "origin" : false, borderWidth: 2,
+    pointRadius: 0, pointHoverRadius: 5, pointHoverBorderColor: css("--surface-1"), pointHoverBorderWidth: 2, tension: .3, spanGaps: true })) } });
+}
+function renderProfile() { profileChart("prof", $("profChart"), "profLegend", D.profile); }
+
+/* ============================== live ============================== */
+function renderLive() {
+  const l = D.live; if (!l) return;
+  const allOn = l.online === l.total;
+  $("livePill").innerHTML = `<span class="pulse ${allOn ? "" : "off"}"></span><span>${allOn ? "All meters online" : `${l.total - l.online} offline`}</span>`;
+  if (state.tab === "overview") {
+    animate($("kLive"), l.site_kw, v => `${nf(v, 1)}<small>kW</small>`);
+    const pts = D.recent?.points || [];
+    $("kLiveNote").innerHTML = `<span class="pulse ${allOn ? "" : "off"}" style="width:7px;height:7px"></span>${l.online}/${l.total} online${pts.length > 1 ? " · last 2 h" : ""}`;
+    spark($("sparkLive"), pts.map(p => p[1]), css("--s3"));
+  }
 }
 
-// ------------------------------------------------------------------ live
-async function loadLive() {
+/* ============================== machines ============================== */
+function machineRows() {
+  const s = D.summary, live = Object.fromEntries((D.live?.meters || []).map(m => [m.id, m]));
+  return [...s.mains, ...s.meters].map(m => ({ ...m, live: live[m.id] }));
+}
+function renderMachines() {
+  if (!D.summary) return;
+  const groups = ["All", ...new Set(CFG.meters.map(m => m.group))];
+  $("groupChips").innerHTML = groups.map(g => `<button data-g="${esc(g)}" aria-pressed="${g === state.group}">${esc(g)}</button>`).join("");
+  $$("#groupChips button").forEach(b => b.onclick = () => { state.group = b.dataset.g; renderMachines(); });
+  const q = state.search.toLowerCase();
+  const rows = machineRows().filter(m => (state.group === "All" || m.group === state.group) && (!q || (m.name + " " + m.group).toLowerCase().includes(q)));
+  const cur = D.summary.currency;
+  $("mGrid").hidden = state.view !== "cards"; $("mTableCard").hidden = state.view !== "table";
+  if (state.view === "cards") {
+    $("mGrid").innerHTML = rows.map(m => { const v = m.live?.values || {}, on = m.live?.online;
+      return `<button class="mcard" data-id="${esc(m.id)}">
+        <div class="row"><div><div class="name">${esc(m.name)} ${m.main ? '<span class="tag">Main</span>' : ""}</div><div class="grp">${esc(m.group)}</div></div>
+          <span class="status"><span class="pulse ${on ? "" : "off"}"></span>${on ? "Online" : "Offline"}</span></div>
+        <div class="kw">${nf(v.power_kw, 1)}<small> kW now</small></div>
+        <canvas data-spark="${esc(m.name)}" aria-hidden="true"></canvas>
+        <div class="foot"><span><b>${nf(m.kwh)}</b> kWh</span><span>${m.share_pct != null ? `${nf(m.share_pct, 1)}% share` : `${esc(cur)} ${nf(m.cost)}`}</span>${deltaHtml(m.change_pct)}</div>
+      </button>`; }).join("") || `<p class="hint">No machines match.</p>`;
+    $$("#mGrid canvas").forEach(c => { const n = c.dataset.spark; spark(c, trimFuture(D.tsMeter.series[n] || D.tsMeter.mains[n] || []), css("--accent")); });
+    $$("#mGrid .mcard").forEach(b => b.onclick = () => openDrawer(b.dataset.id));
+  } else renderMachineTable(rows);
+}
+const COLS = [["name", "Machine", "l"], ["group", "Area", "l"], ["status", "Status", "l"], ["power", "kW now"], ["kwh", "kWh"], ["share_pct", "Share"],
+  ["cost", "Cost"], ["peak_kw", "Peak kW"], ["baseload_kw", "Base load kW"], ["night_pct", "Night use"], ["change_pct", "vs previous"]];
+function renderMachineTable(rows) {
+  const val = (m, k) => k === "power" ? m.live?.values?.power_kw : k === "status" ? (m.live?.online ? 1 : 0) : m[k];
+  rows = [...rows].sort((a, b) => { const x = val(a, state.sortKey), y = val(b, state.sortKey);
+    return (typeof x === "string" ? x.localeCompare(y) : (x ?? -1e18) - (y ?? -1e18)) * state.sortDir; });
+  const max = Math.max(1, ...rows.filter(m => !m.main).map(m => m.kwh));
+  const cell = (m, k) => { const v = val(m, k);
+    if (k === "status") return `<span class="pulse ${v ? "" : "off"}" style="display:inline-block;margin-right:6px"></span>${v ? "Online" : "Offline"}`;
+    if (k === "share_pct" || k === "night_pct") return v == null ? "–" : `${nf(v, 1)}%`;
+    if (k === "change_pct") return v == null ? "–" : `<span class="${v > 0 ? "up" : "down"}">${v > 0 ? "+" : ""}${nf(v, 1)}%</span>`;
+    if (k === "name") return `${esc(v)}${m.main ? ' <span class="tag">Main</span>' : ""}`;
+    if (typeof v === "number") return nf(v, k === "kwh" || k === "cost" ? 0 : 1);
+    return esc(v ?? "–"); };
+  $("mTable").innerHTML = `<thead><tr>${COLS.map(([k, l, c]) => `<th class="${c || ""}" data-k="${k}">${l}${state.sortKey === k ? (state.sortDir < 0 ? " ↓" : " ↑") : ""}</th>`).join("")}<th></th></tr></thead>
+    <tbody>${rows.map(m => `<tr data-id="${esc(m.id)}">${COLS.map(([k, , c]) => `<td class="${c || ""}">${cell(m, k)}</td>`).join("")}
+    <td class="minibar">${m.main ? "" : `<div style="width:${m.kwh / max * 100}%"></div>`}</td></tr>`).join("")}</tbody>`;
+  $$("#mTable th[data-k]").forEach(th => th.onclick = () => { const k = th.dataset.k;
+    state.sortDir = state.sortKey === k ? -state.sortDir : -1; state.sortKey = k; renderMachines(); });
+  $$("#mTable tbody tr").forEach(tr => tr.onclick = () => openDrawer(tr.dataset.id));
+  const t = D.summary.totals;
+  $("mTableNote").textContent = t.unmetered_kwh != null ? `Sub-meters cover ${nf(t.submetered_kwh)} of ${nf(t.kwh)} kWh supplied; ${nf(t.unmetered_kwh)} kWh is unmetered.` : "";
+}
+$("mSearch").oninput = (e) => { state.search = e.target.value; renderMachines(); };
+$$("[data-view]").forEach(b => b.onclick = () => { state.view = b.dataset.view;
+  $$("[data-view]").forEach(x => x.setAttribute("aria-pressed", x === b)); renderMachines(); });
+
+/* ============================== drawer ============================== */
+let lastFocus = null;
+async function openDrawer(id, refresh = false) {
+  const meta = CFG.meters.find(m => m.id === id); if (!meta) return;
+  state.drawer = id;
+  if (!refresh) { lastFocus = document.activeElement; $("drawer").classList.add("open"); $("scrim").classList.add("open");
+    $("drawer").setAttribute("aria-hidden", "false"); $("dClose").focus(); }
+  const m = machineRows().find(r => r.id === id) || {}, cur = D.summary.currency;
+  $("dTitle").innerHTML = `${esc(meta.name)} ${meta.main ? '<span class="tag">Main</span>' : ""}`;
+  $("dSub").textContent = `${meta.group} · ${meta.protocol.toUpperCase()} · ${D.summary.period.label || $("rangeLabel").textContent}`;
+  const stat = (l, v) => `<div><span>${l}</span><b>${v}</b></div>`;
+  $("dStats").innerHTML = [stat("Energy", `${nf(m.kwh)} kWh`), stat("Cost", `${esc(cur)} ${nf(m.cost)}`),
+    stat("Share", m.share_pct != null ? `${nf(m.share_pct, 1)}%` : "main supply"), stat("vs previous", m.change_pct == null ? "–" : `<span class="${m.change_pct > 0 ? "up" : "down"}">${m.change_pct > 0 ? "+" : ""}${nf(m.change_pct, 1)}%</span>`),
+    stat("Peak", `${nf(m.peak_kw, 1)} kW`), stat("Average", `${nf(m.avg_kw, 1)} kW`), stat("Base load", `${nf(m.baseload_kw, 1)} kW`),
+    stat("Night use", `${nf(m.night_pct, 1)}%`)].join("");
+  renderDrawerLive(id);
   try {
-    const l = await api("/api/live");
-    $("tLive").textContent = `${nf(l.site_kw, 1)} kW`;
-    $("tLiveNote").textContent = `${l.online} of ${l.total} meters online`;
-    const chip = $("liveChip");
-    chip.innerHTML = `<span class="status"><span class="dot ${l.online === l.total ? "on" : "off"}"></span>${l.online === l.total ? "All meters online" : `${l.total - l.online} meter(s) offline`}</span>`;
-    $("liveSub").textContent = `updated ${new Date(l.ts * 1000).toLocaleTimeString(undefined, { timeZone: CFG.timezone })}`;
-    const head = `<tr><th class="l">Meter</th><th class="l">Status</th><th>kW</th><th>Voltage</th><th>Current A</th><th>PF</th><th>Meter kWh</th><th class="l">Last reading</th></tr>`;
-    const body = l.meters.map(m => { const v = m.values || {};
-      return `<tr><td class="l">${esc(m.name)}${m.main ? ' <span class="muted">main</span>' : ""}</td>
-        <td class="l"><span class="status"><span class="dot ${m.online ? "on" : "off"}"></span>${m.online ? "Online" : "Offline"}</span>${!m.online && m.error ? ` <span class="muted" title="${esc(m.error)}">${esc(m.error.slice(0, 50))}</span>` : ""}</td>
-        <td>${nf(v.power_kw, 2)}</td><td>${nf(v.voltage_v, 1)}</td><td>${nf(v.current_a, 1)}</td><td>${nf(v.pf, 2)}</td><td>${nf(v.energy_kwh, 1)}</td>
-        <td class="l muted">${m.last_seen ? new Date(m.last_seen * 1000).toLocaleString(undefined, { timeZone: CFG.timezone }) : "never"}</td></tr>`; }).join("");
-    $("liveTable").innerHTML = head + body;
-  } catch (e) { $("liveChip").textContent = "connection lost"; }
+    const q = rangeQuery(), bucket = isSingleDay() ? "&bucket=hour" : "";
+    const [ts, prof, rec] = await Promise.all([api(`/api/timeseries?${q}&meter=${encodeURIComponent(id)}${bucket}`),
+      api(`/api/profile?${q}&meter=${encodeURIComponent(id)}`), api(`/api/recent?minutes=120&meter=${encodeURIComponent(id)}`)]);
+    if (state.drawer !== id) return;
+    D.drawerRecent = rec;
+    const values = Object.values(ts.series)[0] || Object.values(ts.mains)[0] || [];
+    $("dTsSub").textContent = `kWh ${{ "15min": "per 15 minutes", hour: "per hour", day: "per day", month: "per month" }[ts.bucket]}`;
+    const opts = baseOptions();
+    opts.plugins.tooltip.callbacks = { label: (c) => ` ${nf(c.raw, 1)} kWh` };
+    mount("dTs", $("dTs"), { type: "bar", options: opts, data: { labels: ts.labels, datasets: [{ data: values, backgroundColor: css("--accent"),
+      borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: "bottom", barPercentage: .8 }] } });
+    profileChart("dProf", $("dProf"), "dProfLegend", prof);
+    renderDrawerRecent();
+  } catch (e) { if (e.message !== "signed out") toast("Could not load details: " + e.message); }
 }
+function renderDrawerLive(id) {
+  const lm = (D.live?.meters || []).find(m => m.id === id); if (!lm) return;
+  const v = lm.values || {};
+  $("dLiveSub").innerHTML = `<span class="pulse ${lm.online ? "" : "off"}" style="display:inline-block;width:7px;height:7px;margin-right:6px"></span>${lm.online ? "Online" : "Offline"} · ${lm.last_seen ? "last reading " + new Date(lm.last_seen * 1000).toLocaleTimeString(undefined, { timeZone: CFG.timezone }) : "no readings yet"}${!lm.online && lm.error ? ` · ${esc(lm.error.slice(0, 80))}` : ""}`;
+  const item = (l, x) => `<div><span>${l}</span><b>${x}</b></div>`;
+  $("dLive").innerHTML = item("Power", `${nf(v.power_kw, 2)} kW`) + item("Voltage", `${nf(v.voltage_v, 1)} V`) + item("Current", `${nf(v.current_a, 1)} A`)
+    + item("Power factor", nf(v.pf, 2)) + item("Meter", `${nf(v.energy_kwh, 0)} kWh`);
+}
+function renderDrawerRecent() {
+  const pts = D.drawerRecent?.points || [];
+  const opts = baseOptions();
+  opts.plugins.tooltip.callbacks = { label: (c) => ` ${nf(c.raw, 2)} kW` };
+  opts.scales.y.title = { display: true, text: "kW" };
+  mount("dRecent", $("dRecent"), { type: "line", options: opts, data: {
+    labels: pts.map(p => new Date(p[0] * 1000).toLocaleTimeString(undefined, { timeZone: CFG.timezone, hour: "2-digit", minute: "2-digit" })),
+    datasets: [{ data: pts.map(p => p[1]), borderColor: css("--s3"), backgroundColor: css("--s3") + "22", fill: "origin", borderWidth: 2, pointRadius: 0, tension: .3 }] } });
+}
+function closeDrawer() {
+  state.drawer = null; $("drawer").classList.remove("open"); $("scrim").classList.remove("open");
+  $("drawer").setAttribute("aria-hidden", "true"); lastFocus?.focus?.();
+}
+$("dClose").onclick = closeDrawer; $("scrim").onclick = closeDrawer;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.drawer) closeDrawer(); });
 
-async function sendReport() {
-  const kind = prompt("Send which report now? Type weekly or monthly", "monthly");
-  if (!kind || !["daily", "weekly", "monthly"].includes(kind.trim())) return;
+/* ============================== reports ============================== */
+function loadPreview() { $("preview").src = `/api/reports/preview?kind=${state.kind}`; }
+async function loadReports() {
+  loadPreview();
+  const r = CFG.reports || {};
+  const row = (k) => { const x = r[k]; return x ? `<span>${k[0].toUpperCase() + k.slice(1)} report</span><span>${x.enabled ? `On · ${x.recipients} recipient${x.recipients === 1 ? "" : "s"}` : "Off"}</span>` : ""; };
+  $("schedule").innerHTML = `<span>Email sending</span><span>${CFG.email_enabled ? "Enabled" : "Disabled"}</span>` + row("daily") + row("weekly") + row("monthly");
   try {
-    const j = await post(`/api/reports/send?kind=${kind.trim()}`);
-    toast(`${j.status}: ${j.reason || (j.recipients || []).join(", ")}`);
-  } catch (e) { toast("Failed: " + e.message); }
+    const log = await api("/api/reports/log");
+    $("reportLog").innerHTML = log.length ? `<thead><tr><th>When</th><th class="l">Report</th><th class="l">Status</th></tr></thead><tbody>${log.slice(0, 8).map(x =>
+      `<tr style="cursor:default" title="${esc(x.detail || x.recipients || "")}"><td class="l">${new Date(x.ts * 1000).toLocaleString(undefined, { timeZone: CFG.timezone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+      <td class="l">${esc(x.kind)}</td><td class="l"><span class="status-chip ${esc(x.status)}">${esc(x.status)}</span></td></tr>`).join("")}</tbody>` : `<tbody><tr><td class="hint" style="cursor:default">Nothing sent yet.</td></tr></tbody>`;
+  } catch {}
 }
+$$("[data-kind]").forEach(b => b.onclick = () => { state.kind = b.dataset.kind;
+  $$("[data-kind]").forEach(x => x.setAttribute("aria-pressed", x === b)); loadPreview(); });
+$("sendNow").onclick = async () => {
+  if (!confirm(`Send the ${state.kind} report to its recipients now?`)) return;
+  try { const j = await post(`/api/reports/send?kind=${state.kind}`);
+    toast(j.status === "sent" ? `Sent to ${j.recipients.join(", ")}` : `${j.status}: ${j.reason}`); loadReports(); }
+  catch (e) { toast("Failed: " + e.message); }
+};
+$$("[data-dl]").forEach(b => b.onclick = () => location.href = `/api/export.csv?kind=${b.dataset.dl}&${rangeQuery()}`);
 
+/* ============================== start ============================== */
+async function init() {
+  CFG = await api("/api/config");
+  $("siteName").textContent = `${CFG.site} · ${CFG.meters.length} meters`;
+  document.title = `${CFG.site} – Flexpower EMS Kit`;
+  if (CFG.login_required) {
+    $("userChip").hidden = false; $("userName").textContent = CFG.user.username;
+    $("avatar").textContent = CFG.user.username.slice(0, 1).toUpperCase(); $("userChip").title = `${CFG.user.username} (${CFG.user.role})`;
+    $("logoutBtn").onclick = async () => { await post("/api/logout").catch(() => {}); location.replace("/login"); };
+  }
+  if (CFG.user.role === "admin") $("sendNow").hidden = false;
+  if (!CFG.periods[state.period]) state.period = "this_month";
+  syncPeriodControls();
+  const tab = location.hash.slice(1);
+  if (["machines", "reports"].includes(tab)) setTab(tab);
+  await Promise.all([loadPeriod(), loadLive()]);
+  setInterval(loadLive, Math.max(10, CFG.poll_seconds) * 1000);
+  setInterval(loadPeriod, 5 * 60 * 1000);
+  let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { if (D.tsGroup && state.tab === "overview") { spark($("sparkEnergy"), siteDaily(D.tsGroup), css("--accent")); renderLive(); } if (state.tab === "machines") renderMachines(); }, 150); });
+}
 init().catch(e => toast("Could not start: " + e.message));
 </script>
 </body>

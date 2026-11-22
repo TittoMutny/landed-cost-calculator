@@ -302,11 +302,12 @@ def auto_bucket(start: datetime, end: datetime) -> str:
 
 
 def timeseries(cfg: Config, db: Database, start: datetime, end: datetime,
-               bucket: str | None = None, by: str = "meter") -> dict[str, Any]:
+               bucket: str | None = None, by: str = "meter",
+               meter_ids: list[str] | None = None) -> dict[str, Any]:
     """kWh per bucket, one series per meter (or per group). Main meters are kept separate."""
     tz = cfg.tz
     bucket = bucket or auto_bucket(start, end)
-    rows = db.intervals(int(start.timestamp()), int(end.timestamp()))
+    rows = db.intervals(int(start.timestamp()), int(end.timestamp()), meter_ids)
     meters = {m.id: m for m in cfg.meters}
 
     # Build the full list of bucket labels so gaps show as zero.
@@ -343,11 +344,16 @@ def timeseries(cfg: Config, db: Database, start: datetime, end: datetime,
             "iso": [d.isoformat() for d in labels], "series": rnd(series), "mains": rnd(main_series)}
 
 
-def hourly_profile(cfg: Config, db: Database, start: datetime, end: datetime) -> dict[str, Any]:
-    """Average site kW for each hour of the day, weekdays vs weekends."""
-    tz = cfg.tz
+def _site_ids(cfg: Config) -> list[str]:
     mains, subs = _site_meters(cfg)
-    ids = [m.id for m in (mains or subs)]
+    return [m.id for m in (mains or subs)]
+
+
+def hourly_profile(cfg: Config, db: Database, start: datetime, end: datetime,
+                   meter_ids: list[str] | None = None) -> dict[str, Any]:
+    """Average kW (site, or the given meters) for each hour of the day, weekdays vs weekends."""
+    tz = cfg.tz
+    ids = meter_ids or _site_ids(cfg)
     rows = db.intervals(int(start.timestamp()), int(end.timestamp()), ids)
     per_slot: dict[tuple[bool, int, int], float] = defaultdict(float)  # (weekend, day, hour) -> kWh
     for r in rows:
@@ -362,6 +368,56 @@ def hourly_profile(cfg: Config, db: Database, start: datetime, end: datetime) ->
                 counts[hour] += 1
         out["weekend" if weekend else "weekday"] = [round(sums[h] / counts[h], 2) if counts[h] else None for h in range(24)]
     return out
+
+
+def heatmap(cfg: Config, db: Database, start: datetime, end: datetime,
+            meter_ids: list[str] | None = None) -> dict[str, Any]:
+    """kWh per day (rows) and hour of day (columns) for the site or the given meters."""
+    tz = cfg.tz
+    rows = db.intervals(int(start.timestamp()), int(end.timestamp()), meter_ids or _site_ids(cfg))
+    days: list[datetime] = []
+    d = start.replace(hour=0, minute=0, second=0, microsecond=0)
+    stop = min(end, datetime.now(tz))  # no empty rows for days that haven't happened yet
+    while d < stop:
+        days.append(d)
+        d = (d + timedelta(days=1, hours=2)).replace(hour=0)
+    idx = {x.date(): i for i, x in enumerate(days)}
+    grid = [[0.0] * 24 for _ in days]
+    seen = [[False] * 24 for _ in days]
+    for r in rows:
+        local = datetime.fromtimestamp(r["start"], tz)
+        i = idx.get(local.date())
+        if i is not None:
+            grid[i][local.hour] += r["kwh"]
+            seen[i][local.hour] = True
+    values = [[round(v, 2) if seen[i][h] else None for h, v in enumerate(row)] for i, row in enumerate(grid)]
+    flat = [v for row in values for v in row if v is not None]
+    return {"days": [x.date().isoformat() for x in days], "values": values,
+            "max": max(flat) if flat else 0.0}
+
+
+def recent_power(cfg: Config, db: Database, minutes: int = 120,
+                 meter_ids: list[str] | None = None) -> dict[str, Any]:
+    """Site (or meter) kW over the last few minutes, from raw readings."""
+    ids = meter_ids or _site_ids(cfg)
+    step = int(max(60, cfg.poll_seconds))
+    now = int(time.time())
+    since = now - minutes * 60
+    with db.connect() as con:
+        rows = con.execute(
+            f"SELECT ts, meter_id, value FROM readings WHERE quantity='power_kw' AND ts >= ? "
+            f"AND meter_id IN ({','.join('?' * len(ids))}) ORDER BY ts", [since - 3 * step] + ids).fetchall()
+    last: dict[str, tuple[int, float]] = {}
+    points: list[list[float]] = []
+    i = 0
+    for b in range(since - since % step, now + 1, step):
+        while i < len(rows) and rows[i]["ts"] < b + step:
+            last[rows[i]["meter_id"]] = (rows[i]["ts"], rows[i]["value"])
+            i += 1
+        fresh = [v for t, v in last.values() if b + step - t <= 3 * step]
+        if fresh and b >= since - step:
+            points.append([b + step, round(sum(fresh), 3)])
+    return {"step": step, "points": points}
 
 
 def live(cfg: Config, db: Database) -> dict[str, Any]:

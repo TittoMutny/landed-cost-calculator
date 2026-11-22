@@ -35,7 +35,7 @@ GUEST = "guest"
 log = logging.getLogger("ems.web")
 
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
-       "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'")
+       "img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; form-action 'self'; base-uri 'none'")
 
 
 class LoginBody(BaseModel):
@@ -110,6 +110,15 @@ def create_app(cfg: Config, db: Database) -> FastAPI:
         if user["role"] != "admin":
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin role required")
         return user
+
+    def meter_filter(meter: str | None) -> list[str] | None:
+        if not meter:
+            return None
+        ids = [m for m in meter.split(",") if m]
+        unknown = [m for m in ids if cfg.meter(m) is None]
+        if unknown:
+            raise HTTPException(400, f"unknown meter(s): {', '.join(unknown)}")
+        return ids
 
     def rng(period: str | None, start: str | None, end: str | None) -> tuple[datetime, datetime, str]:
         try:
@@ -206,16 +215,29 @@ def create_app(cfg: Config, db: Database) -> FastAPI:
     @app.get("/api/timeseries")
     def get_timeseries(period: str | None = None, start: str | None = None, end: str | None = None,
                        bucket: str | None = Query(None, pattern="^(15min|hour|day|month)$"),
-                       by: str = Query("meter", pattern="^(meter|group)$"),
+                       by: str = Query("meter", pattern="^(meter|group)$"), meter: str | None = None,
                        user: dict = Depends(current_user)):
         s, e, _ = rng(period, start, end)
-        return analytics.timeseries(cfg, db, s, e, bucket, by)
+        return analytics.timeseries(cfg, db, s, e, bucket, by, meter_filter(meter))
 
     @app.get("/api/profile")
     def get_profile(period: str | None = None, start: str | None = None, end: str | None = None,
-                    user: dict = Depends(current_user)):
+                    meter: str | None = None, user: dict = Depends(current_user)):
         s, e, _ = rng(period, start, end)
-        return analytics.hourly_profile(cfg, db, s, e)
+        return analytics.hourly_profile(cfg, db, s, e, meter_filter(meter))
+
+    @app.get("/api/heatmap")
+    def get_heatmap(period: str | None = None, start: str | None = None, end: str | None = None,
+                    meter: str | None = None, user: dict = Depends(current_user)):
+        s, e, _ = rng(period, start, end)
+        if (e - s).days > 400:
+            raise HTTPException(400, "range too long for a heatmap")
+        return analytics.heatmap(cfg, db, s, e, meter_filter(meter))
+
+    @app.get("/api/recent")
+    def get_recent(minutes: int = Query(120, ge=5, le=1440), meter: str | None = None,
+                   user: dict = Depends(current_user)):
+        return analytics.recent_power(cfg, db, minutes, meter_filter(meter))
 
     @app.get("/api/export.csv")
     def export_csv(kind: str = Query("summary", pattern="^(summary|timeseries)$"),
@@ -249,7 +271,7 @@ def create_app(cfg: Config, db: Database) -> FastAPI:
     async def security_headers(request, call_next):
         resp = await call_next(request)
         resp.headers["X-Content-Type-Options"] = "nosniff"
-        resp.headers["X-Frame-Options"] = "DENY"
+        resp.headers["X-Frame-Options"] = "SAMEORIGIN"
         resp.headers["Referrer-Policy"] = "same-origin"
         resp.headers["Content-Security-Policy"] = CSP
         if request.url.path.startswith("/api/"):

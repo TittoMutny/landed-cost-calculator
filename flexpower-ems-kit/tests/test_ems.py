@@ -212,6 +212,24 @@ def test_web_requires_login_and_roles(tmp_path):
     assert client.post("/api/reports/send?kind=weekly", headers={"X-CSRF-Token": cfg["csrf"]}).status_code == 403
 
 
+def test_meter_filters_heatmap_and_recent(tmp_path):
+    client, c, db = web_client(tmp_path)
+    login(client, "boss", "owner-pass-123")
+    day = datetime.now(c.tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    seed(db, "a", int(day.timestamp()), 2, 4.0)
+    q = f"start={day:%Y-%m-%d}&end={day:%Y-%m-%d}"
+    ts = client.get(f"/api/timeseries?{q}&bucket=hour&meter=a").json()
+    assert list(ts["series"]) == ["Machine A"] and ts["series"]["Machine A"][:2] == [4.0, 4.0]
+    assert client.get(f"/api/timeseries?{q}&meter=nope").status_code == 400
+    h = client.get(f"/api/heatmap?{q}&meter=a").json()
+    assert h["days"] == [f"{day:%Y-%m-%d}"] and h["values"][0][0] == 4.0 and h["values"][0][5] is None
+    now = int(time.time())
+    db.ingest("a", now - 120, {"power_kw": 3.0}); db.ingest("a", now - 60, {"power_kw": 5.0})
+    pts = client.get("/api/recent?minutes=10&meter=a").json()["points"]
+    assert pts and pts[-1][1] == 5.0
+    assert client.get("/api/reports/preview?kind=weekly").headers["x-frame-options"] == "SAMEORIGIN"
+
+
 def test_csrf_and_cross_site_protection(tmp_path):
     client, *_ = web_client(tmp_path)
     login(client, "admin", "admin-pass-123")
