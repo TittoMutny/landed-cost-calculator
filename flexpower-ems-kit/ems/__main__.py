@@ -5,6 +5,7 @@
     python -m ems test-meter <meter_id>    read one meter once and print the values
     python -m ems report weekly --html out.html [--send]
     python -m ems hash-password            make a password hash for config.yaml
+    python -m ems set-smtp-password        store the email password encrypted (Windows DPAPI)
 """
 from __future__ import annotations
 
@@ -138,6 +139,22 @@ def cmd_hash_password(args, cfg) -> None:
     print(hash_password(pw))
 
 
+def cmd_set_smtp_password(args, cfg) -> None:
+    from .credentials import dpapi_available, save_secret
+
+    path = cfg.smtp_password_file
+    pw = getpass.getpass(f"SMTP password for {cfg.section('email').get('username') or 'the mail account'}: ")
+    if not pw:
+        sys.exit("No password entered; nothing changed.")
+    if pw != getpass.getpass("Repeat: "):
+        sys.exit("Passwords do not match")
+    encrypted = save_secret(path, pw)
+    print(f"Saved to {path} ({'encrypted with Windows DPAPI' if encrypted else 'owner-only file permissions'}).")
+    if not dpapi_available():
+        print("Note: DPAPI is only available on Windows; on this system the file is protected by permissions only.")
+    print("Restart the service to use it.")
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="ems", description="Flexpower EMS Kit")
     p.add_argument("-c", "--config", default="config.yaml")
@@ -156,6 +173,7 @@ def main(argv: list[str] | None = None) -> None:
     rp.add_argument("--send", action="store_true", help="email it to the configured recipients")
     rp.add_argument("--to", nargs="*", help="override recipients when sending")
     sub.add_parser("hash-password")
+    sub.add_parser("set-smtp-password")
     args = p.parse_args(argv)
 
     if args.cmd == "hash-password":
@@ -166,7 +184,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(f"Config error: {exc}")
     setup_logging(cfg.base_dir, args.verbose)
     {"run": cmd_run, "seed-demo": cmd_seed_demo, "test-meter": cmd_test_meter,
-     "report": cmd_report}[args.cmd](args, cfg)
+     "report": cmd_report, "set-smtp-password": cmd_set_smtp_password}[args.cmd](args, cfg)
 
 
 if __name__ == "__main__":

@@ -28,9 +28,18 @@ storage:
 web:
   host: "127.0.0.1"                 # keep 127.0.0.1 when publishing through Cloudflare Tunnel
   port: 8080
+  # Sign-in sessions: signed out after this long without activity, and in any case after max days.
+  session_idle_hours: 12
+  session_max_days: 7
+  # Brute-force protection: after this many wrong passwords within 15 minutes the
+  # username (and the visitor's IP address) is locked for lockout_minutes.
+  login_max_attempts: 5
+  login_lockout_minutes: 15
+  secure_cookies: auto              # auto = HTTPS-only cookies when reached over HTTPS (Cloudflare)
   # Users for the dashboard login. Create a hash with:
   #   python -m ems hash-password
   # Leave the list empty to disable the login (only do that behind Cloudflare Access).
+  # Removing a user here and restarting signs them out everywhere.
   users:
     # - username: admin
     #   password_hash: "pbkdf2_sha256$...."
@@ -42,7 +51,12 @@ email:
   smtp_port: 587
   security: "starttls"              # starttls | ssl | none
   username: "energy@yourcompany.com"
-  password_env: "EMS_SMTP_PASSWORD" # the password is read from this environment variable
+  # The password is NOT stored here. Save it encrypted with:
+  #   python -m ems set-smtp-password
+  # (the Windows service installer offers to do this). It is written to
+  # password_file, encrypted with Windows DPAPI.
+  password_file: "data/smtp.secret"
+  password_env: "EMS_SMTP_PASSWORD" # optional: an environment variable overrides the file
   from_addr: "Flexpower EMS Kit <energy@yourcompany.com>"
   dashboard_url: "https://energy.yourcompany.com"   # linked from the emails
 

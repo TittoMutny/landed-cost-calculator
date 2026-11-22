@@ -73,6 +73,7 @@ th:first-child, td:first-child, th.l, td.l { text-align: left; }
 .bar-cell { width: 120px; } .bar-cell div { height: 8px; background: var(--accent); border-radius: 0 4px 4px 0; }
 #toast { position: fixed; bottom: 20px; right: 20px; background: var(--text-primary); color: var(--surface-1);
   padding: 10px 14px; border-radius: 8px; display: none; max-width: 360px; }
+.user { font-size: 12px; color: var(--text-muted); }
 #custom { display: none; gap: 6px; align-items: center; }
 @media (max-width: 1100px) { .tiles { grid-template-columns: repeat(3, 1fr); }
   .span-8, .span-7, .span-5, .span-4 { grid-column: span 12; } }
@@ -100,6 +101,8 @@ th:first-child, td:first-child, th.l, td.l { text-align: left; }
     <button id="exportBtn" title="Download the table below as CSV">Export CSV</button>
     <button id="previewBtn" title="Open last month's email report">Report preview</button>
     <button id="sendBtn" class="primary" hidden>Send report…</button>
+    <span class="user" id="userName"></span>
+    <button id="logoutBtn" hidden>Sign out</button>
   </div>
 </header>
 
@@ -165,11 +168,14 @@ function slotColor(name) {
   return css(`--s${colorOf[name] + 1}`);
 }
 
-async function api(path) {
-  const r = await fetch(path, { credentials: "same-origin" });
+async function api(path, opts = {}) {
+  const r = await fetch(path, { credentials: "same-origin", ...opts });
+  if (r.status === 401) { location.replace("/login"); throw new Error("signed out"); }
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return r.json();
 }
+// State-changing requests carry the session's CSRF token.
+const post = (path) => api(path, { method: "POST", headers: { "X-CSRF-Token": CFG.csrf } });
 function rangeQuery() {
   return state.period === "custom" && state.from && state.to
     ? `start=${state.from}&end=${state.to}` : `period=${state.period}`;
@@ -213,6 +219,11 @@ async function init() {
   $("exportBtn").onclick = () => location.href = `/api/export.csv?kind=summary&${rangeQuery()}`;
   $("previewBtn").onclick = () => window.open("/api/reports/preview?kind=monthly", "_blank");
   if (CFG.user.role === "admin") { $("sendBtn").hidden = false; $("sendBtn").onclick = sendReport; }
+  if (CFG.login_required) {
+    $("userName").textContent = `${CFG.user.username} · ${CFG.user.role}`;
+    $("logoutBtn").hidden = false;
+    $("logoutBtn").onclick = async () => { await post("/api/logout").catch(() => {}); location.replace("/login"); };
+  }
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (lastSummary) loadPeriod(); });
   await Promise.all([loadPeriod(), loadLive()]);
   setInterval(loadLive, Math.max(10, CFG.poll_seconds) * 1000);
@@ -344,9 +355,10 @@ async function loadLive() {
 async function sendReport() {
   const kind = prompt("Send which report now? Type weekly or monthly", "monthly");
   if (!kind || !["daily", "weekly", "monthly"].includes(kind.trim())) return;
-  const r = await fetch(`/api/reports/send?kind=${kind.trim()}`, { method: "POST", credentials: "same-origin" });
-  const j = await r.json().catch(() => ({}));
-  toast(r.ok ? `${j.status}: ${j.reason || (j.recipients || []).join(", ")}` : `Failed: ${j.detail || r.status}`);
+  try {
+    const j = await post(`/api/reports/send?kind=${kind.trim()}`);
+    toast(`${j.status}: ${j.reason || (j.recipients || []).join(", ")}`);
+  } catch (e) { toast("Failed: " + e.message); }
 }
 
 init().catch(e => toast("Could not start: " + e.message));

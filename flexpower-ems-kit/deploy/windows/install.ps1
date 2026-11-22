@@ -6,7 +6,7 @@ $root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $root
 
 $py = Get-Command py -ErrorAction SilentlyContinue
-if (-not $py) { throw "Python launcher 'py' not found. Install Python 3.11+ from python.org (tick 'Add to PATH')." }
+if (-not $py) { throw "Python launcher 'py' not found. Install Python 3.11+ from python.org: Customize installation, tick 'Add to PATH' and 'Install Python for all users'." }
 
 if (-not (Test-Path ".venv")) {
     Write-Host "Creating virtual environment..."
@@ -26,4 +26,5 @@ Write-Host "  1. Edit config.yaml (meters, tariff, email)."
 Write-Host "  2. Optional demo data:   .\.venv\Scripts\python.exe -m ems seed-demo --days 90"
 Write-Host "  3. Test a real meter:    .\.venv\Scripts\python.exe -m ems test-meter <meter_id>"
 Write-Host "  4. Start it:             .\run.bat   (then open http://localhost:8080)"
-Write-Host "  5. Run as a service:     deploy\windows\install-service.ps1 (as Administrator)"
+Write-Host "  5. Email password:       .\.venv\Scripts\python.exe -m ems set-smtp-password"
+Write-Host "  6. Run as a service:     deploy\windows\install-service.ps1 (as Administrator)"

@@ -42,7 +42,9 @@ analysis pick it up automatically.
 
 ## Quick start (Windows)
 
-1. Install **Python 3.11 or newer** from python.org and tick *Add python.exe to PATH*.
+1. Install **Python 3.11 or newer** from python.org. Choose *Customize installation*,
+   tick *Add python.exe to PATH* and, under *Advanced options*, **Install Python for all users**
+   (the background service needs this).
 2. Copy this `flexpower-ems-kit` folder to the PC, e.g. `C:\FlexpowerEMS`.
 3. In PowerShell in that folder:
    ```powershell
@@ -112,14 +114,21 @@ email:
   smtp_port: 587
   security: starttls
   username: energy@yourcompany.com
-  password_env: EMS_SMTP_PASSWORD   # the password is never stored in the file
+  password_file: data/smtp.secret   # written encrypted by set-smtp-password
 reports:
   weekly:  {enabled: true, day_of_week: mon, time: "07:00", recipients: [manager@...]}
   monthly: {enabled: true, day_of_month: 1, time: "07:30", recipients: [owner@...]}
 ```
 
-For Gmail/Microsoft 365 use an **app password** or a mailbox set up for SMTP.
-Preview without sending:
+Store the mail password **encrypted** (it is never written to `config.yaml`):
+
+```powershell
+.\.venv\Scripts\python.exe -m ems set-smtp-password
+```
+
+On Windows this uses DPAPI, so the file is unreadable if copied to another PC.
+For Gmail/Microsoft 365 use an **app password** on a dedicated mailbox that is
+only used for sending these reports. Preview without sending:
 
 ```powershell
 .\.venv\Scripts\python.exe -m ems report monthly --html monthly.html
@@ -135,11 +144,27 @@ Download [NSSM](https://nssm.cc/download), put `nssm.exe` on PATH, then in an
 **Administrator** PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File deploy\windows\install-service.ps1 -SmtpPassword "your-app-password"
+powershell -ExecutionPolicy Bypass -File deploy\windows\install-service.ps1
 ```
 
-After changing `config.yaml`: `nssm restart FlexpowerEMS`.
-Logs are in `data\ems.log`.
+The script:
+
+- runs the service under its own **restricted account** (`NT SERVICE\FlexpowerEMS`)
+  rather than the all-powerful LocalSystem, so a flaw in the app can't take over the PC
+- locks the program folder: only Administrators, SYSTEM, you and the service can
+  read it, and only the service can write to `data\`
+- offers to store the email password encrypted, and makes that file readable only
+  by Administrators and the service. The password never appears on a command
+  line, in the registry or in PowerShell history.
+
+Re-run it any time; it replaces the existing service. If an older version was
+installed with `-SmtpPassword`, re-running removes that plain-text copy.
+If an RS-485 adapter won't open under the restricted account, add `-UseLocalSystem`
+as a fallback.
+
+Because the folder is locked down, edit `config.yaml` from an editor opened as
+Administrator (or as the user who ran the script), then `nssm restart FlexpowerEMS`.
+Logs are in `data\ems.log`, including every sign-in, failed sign-in and manual report send.
 
 ## Publishing online with Cloudflare
 
@@ -172,6 +197,23 @@ add dashboard users.
 `viewer` can see everything; `admin` can also send reports. With Cloudflare
 Access in front you may leave the user list empty.
 
+How sign-in is protected:
+
+- **Sign-in page and sessions.** Users sign in on a proper page and get a session
+  that ends after 12 hours of inactivity or 7 days in total (`session_idle_hours`,
+  `session_max_days`). **Sign out** ends it on the server immediately. Removing a
+  user from `config.yaml` and restarting signs them out everywhere.
+- **Lockout.** After 5 wrong passwords in 15 minutes the username *and* the
+  visitor's IP address are locked for 15 minutes (`login_max_attempts`,
+  `login_lockout_minutes`). Behind Cloudflare the real visitor IP is used.
+  Someone guessing can also lock out the real user for that time, which is
+  another reason to keep Cloudflare Access in front.
+- **Cross-site protection.** Actions such as sending a report need a per-session
+  token and are refused if they come from another website, so a malicious page
+  can't act for a logged-in admin.
+- Session cookies are HttpOnly and, over HTTPS, Secure. Only a hash of the cookie is
+  stored, so a copied database can't be used to sign in.
+
 ## Backups
 
 Everything is in `data\ems.sqlite3` plus your `config.yaml`. Copy both to a
@@ -198,6 +240,8 @@ Run the tests with `pip install -r requirements-dev.txt && pytest`.
 
 - Consumption between two readings is credited to the 15-minute slot of the
   later reading. After a long outage the catch-up lands in one slot. Totals stay correct.
+- Not yet professionally security tested. Plain-HTTP access on the LAN
+  (`web.host: 0.0.0.0` without Cloudflare) sends passwords unencrypted; prefer the tunnel.
 - Alerts (meter offline, consumption above a threshold, peak-demand warnings)
   are not built yet; the data needed for them is already collected.
 - One site per installation. For several sites, run one instance per site, each

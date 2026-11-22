@@ -162,33 +162,132 @@ def test_password_hash_roundtrip():
     assert not verify_password("x", "garbage")
 
 
-def test_web_requires_login_and_roles(tmp_path):
+def web_client(tmp_path, extra_web="", users=True):
     from fastapi.testclient import TestClient
     from ems.web import create_app
 
-    body = BASE + f"""
-web:
+    user_block = f"""
   users:
     - {{username: boss, password_hash: "{hash_password('owner-pass-123')}", role: viewer}}
-    - {{username: admin, password_hash: "{hash_password('admin-pass-123')}", role: admin}}
+    - {{username: admin, password_hash: "{hash_password('admin-pass-123')}", role: admin}}""" if users else ""
+    body = BASE + f"""
+web:
+  login_max_attempts: 3
+  login_lockout_minutes: 15{extra_web}{user_block}
 meters:
   - {{id: a, name: Machine A, protocol: simulated}}
 """
     c = load_config(write_config(tmp_path, body))
-    client = TestClient(create_app(c, Database(c.db_path)))
+    db = Database(c.db_path)
+    return TestClient(create_app(c, db)), c, db
+
+
+def login(client, user, pw):
+    return client.post("/api/login", json={"username": user, "password": pw})
+
+
+def test_web_requires_login_and_roles(tmp_path):
+    client, *_ = web_client(tmp_path)
     assert client.get("/api/health").status_code == 200
-    assert client.get("/api/summary").status_code == 401
-    assert client.get("/api/summary", auth=("boss", "nope")).status_code == 401
-    r = client.get("/api/summary?period=last_7_days", auth=("boss", "owner-pass-123"))
-    assert r.status_code == 200 and "totals" in r.json()
-    assert client.get("/", auth=("boss", "owner-pass-123")).status_code == 200
     assert client.get("/static/chart.umd.js").status_code == 200
     assert client.get("/static/..%2Fweb.py").status_code == 404
-    assert client.post("/api/reports/send?kind=weekly", auth=("boss", "owner-pass-123")).status_code == 403
-    r = client.post("/api/reports/send?kind=weekly", auth=("admin", "admin-pass-123"))
-    assert r.json()["status"] == "skipped"  # email disabled in this config
-    r = client.get("/api/export.csv?kind=timeseries&period=yesterday", auth=("boss", "owner-pass-123"))
+    assert client.get("/api/summary").status_code == 401
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login"
+    assert "Sign in" in client.get("/login").text
+
+    assert login(client, "boss", "nope").status_code == 401
+    r = login(client, "boss", "owner-pass-123")
+    assert r.status_code == 200
+    cookie = r.headers["set-cookie"].lower()
+    assert "httponly" in cookie and "samesite=lax" in cookie
+    assert client.get("/", follow_redirects=False).status_code == 200
+    assert "totals" in client.get("/api/summary?period=last_7_days").json()
+    cfg = client.get("/api/config").json()
+    assert cfg["user"] == {"username": "boss", "role": "viewer"} and cfg["csrf"]
+    r = client.get("/api/export.csv?kind=timeseries&period=yesterday")
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+    assert r.headers["cache-control"] == "no-store"
+    # viewer cannot send reports, even with a valid CSRF token
+    assert client.post("/api/reports/send?kind=weekly", headers={"X-CSRF-Token": cfg["csrf"]}).status_code == 403
+
+
+def test_csrf_and_cross_site_protection(tmp_path):
+    client, *_ = web_client(tmp_path)
+    login(client, "admin", "admin-pass-123")
+    csrf = client.get("/api/config").json()["csrf"]
+    url = "/api/reports/send?kind=weekly"
+    assert client.post(url).status_code == 403                                   # no token
+    assert client.post(url, headers={"X-CSRF-Token": "forged"}).status_code == 403
+    assert client.post(url, headers={"X-CSRF-Token": csrf, "Sec-Fetch-Site": "cross-site"}).status_code == 403
+    r = client.post(url, headers={"X-CSRF-Token": csrf, "Sec-Fetch-Site": "same-origin"})
+    assert r.status_code == 200 and r.json()["status"] == "skipped"  # email disabled in test config
+    assert login(client, "admin", "x").status_code == 401
+    assert client.post("/api/login", json={"username": "admin", "password": "admin-pass-123"},
+                       headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
+
+
+def test_logout_ends_session(tmp_path):
+    client, *_ = web_client(tmp_path)
+    login(client, "boss", "owner-pass-123")
+    old_cookie = client.cookies.get("ems_session")
+    assert client.post("/api/logout").status_code == 200
+    client.cookies.set("ems_session", old_cookie)  # replaying the old cookie must not work
+    assert client.get("/api/summary").status_code == 401
+
+
+def test_lockout_after_repeated_failures(tmp_path):
+    client, *_ = web_client(tmp_path)
+    for _ in range(3):
+        assert login(client, "admin", "wrong").status_code == 401
+    r = login(client, "admin", "admin-pass-123")  # right password, but locked
+    assert r.status_code == 429 and "Try again in 15 minute" in r.json()["detail"]
+    # the visitor's IP is locked too, so guessing another username doesn't help
+    assert login(client, "boss", "owner-pass-123").status_code == 429
+
+
+def test_lockout_expires_and_success_resets(tmp_path):
+    from ems.security import LoginLimiter
+
+    client, c, db = web_client(tmp_path)
+    lim = LoginLimiter(db, max_attempts=2, window_seconds=900, lock_seconds=0)
+    lim.failure(["user:x"]); lim.failure(["user:x"])
+    assert lim.locked_for(["user:x"]) == 0  # zero-length lock already expired
+    login(client, "boss", "wrong"); login(client, "boss", "wrong")
+    assert login(client, "boss", "owner-pass-123").status_code == 200  # 2 < 3 attempts
+    with db.connect() as con:
+        assert con.execute("SELECT count(*) FROM login_failures WHERE key='user:boss'").fetchone()[0] == 0
+
+
+def test_session_idle_timeout(tmp_path):
+    client, c, db = web_client(tmp_path)
+    login(client, "boss", "owner-pass-123")
+    with db.connect() as con:
+        con.execute("UPDATE sessions SET last_seen = last_seen - 13*3600")  # default idle limit is 12 h
+    assert client.get("/api/summary").status_code == 401
+
+
+def test_guest_mode_still_needs_csrf(tmp_path):
+    client, *_ = web_client(tmp_path, users=False)
+    r = client.get("/", follow_redirects=True)  # / -> /login -> guest session -> /
+    assert r.status_code == 200 and "Flexpower EMS Kit" in r.text
+    cfg = client.get("/api/config").json()
+    assert cfg["login_required"] is False and cfg["user"]["role"] == "admin"
+    assert client.post("/api/reports/send?kind=weekly").status_code == 403
+    assert client.post("/api/reports/send?kind=weekly", headers={"X-CSRF-Token": cfg["csrf"]}).status_code == 200
+
+
+def test_smtp_password_file_roundtrip(tmp_path, monkeypatch):
+    from ems.credentials import load_secret, save_secret
+
+    c = load_config(write_config(tmp_path, BASE + "email: {password_env: EMS_TEST_PW}\nmeters: []\n"))
+    monkeypatch.delenv("EMS_TEST_PW", raising=False)
+    assert c.smtp_password is None
+    save_secret(c.smtp_password_file, "s3cret pässword")
+    assert load_secret(c.smtp_password_file) == "s3cret pässword"
+    assert c.smtp_password == "s3cret pässword"
+    monkeypatch.setenv("EMS_TEST_PW", "from-env")
+    assert c.smtp_password == "from-env"
 
 
 # ------------------------------------------------------------------ real Modbus TCP

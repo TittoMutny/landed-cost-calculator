@@ -97,10 +97,20 @@ class Config:
         return p if p.is_absolute() else self.base_dir / p
 
     @property
+    def smtp_password_file(self) -> Path:
+        p = Path(self.section("email").get("password_file") or "data/smtp.secret")
+        return p if p.is_absolute() else self.base_dir / p
+
+    @property
     def smtp_password(self) -> str | None:
-        email = self.section("email")
-        env = email.get("password_env")
-        return os.environ.get(env) if env else email.get("password")
+        """Environment variable first (handy for testing), then the encrypted file
+        written by `python -m ems set-smtp-password`."""
+        from .credentials import load_secret
+
+        env = self.section("email").get("password_env")
+        if env and os.environ.get(env):
+            return os.environ[env]
+        return load_secret(self.smtp_password_file)
 
     def meter(self, meter_id: str) -> Meter | None:
         return next((m for m in self.meters if m.id == meter_id), None)

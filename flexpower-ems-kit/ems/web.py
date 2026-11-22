@@ -1,40 +1,112 @@
-"""Dashboard web server and JSON API."""
+"""Dashboard web server and JSON API.
+
+Security model
+  * Login with username/password creates a server-side session. The browser only
+    holds a random token in an HttpOnly cookie (SameSite=Lax, Secure over HTTPS).
+  * Every state-changing request (POST) must carry the session's CSRF token in an
+    X-CSRF-Token header and must not be a cross-site request, so another website
+    cannot act on behalf of a logged-in user.
+  * Repeated failed logins lock the username and the client IP for a while.
+  * With no users configured (only sensible behind Cloudflare Access) visitors get
+    an automatic session, so the CSRF protection still applies.
+"""
 from __future__ import annotations
 
+import logging
+import math
+import secrets
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
-from fastapi.responses import FileResponse, HTMLResponse, Response
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from pydantic import BaseModel, Field
 
 from . import analytics, reports
-from .auth import verify_password
+from .auth import hash_password, verify_password
 from .config import Config
 from .db import Database
+from .security import LoginLimiter, Session, SessionStore
 
 STATIC = Path(__file__).parent / "static"
+COOKIE = "ems_session"
+GUEST = "guest"
+log = logging.getLogger("ems.web")
+
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'")
+
+
+class LoginBody(BaseModel):
+    username: str = Field(max_length=100)
+    password: str = Field(max_length=200)
 
 
 def create_app(cfg: Config, db: Database) -> FastAPI:
-    app = FastAPI(title="Flexpower EMS Kit", docs_url=None, redoc_url=None)
-    users = {u["username"]: u for u in (cfg.section("web").get("users") or []) if u.get("username")}
-    basic = HTTPBasic(auto_error=False)
+    app = FastAPI(title="Flexpower EMS Kit", docs_url=None, redoc_url=None, openapi_url=None)
+    web = cfg.section("web")
+    users = {u["username"]: u for u in (web.get("users") or []) if u.get("username")}
+    login_required = bool(users)
+    sessions = SessionStore(db, idle_seconds=int(float(web.get("session_idle_hours", 12)) * 3600),
+                            max_seconds=int(float(web.get("session_max_days", 7)) * 86400))
+    limiter = LoginLimiter(db, max_attempts=int(web.get("login_max_attempts", 5)), window_seconds=15 * 60,
+                           lock_seconds=int(float(web.get("login_lockout_minutes", 15)) * 60))
+    dummy_hash = hash_password(secrets.token_hex(8))  # same cost as a real check, for unknown usernames
 
-    def current_user(creds: HTTPBasicCredentials | None = Depends(basic)) -> dict[str, Any]:
-        if not users:  # login disabled (e.g. Cloudflare Access handles it)
-            return {"username": "anonymous", "role": "admin"}
-        if creds is not None:
-            u = users.get(creds.username)
-            # compare against a dummy hash when the user is unknown to keep timing similar
-            ok = verify_password(creds.password, u["password_hash"] if u else "pbkdf2_sha256$1$AA==$AA==")
-            if u and ok:
-                return {"username": u["username"], "role": u.get("role", "viewer")}
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Login required",
-                            headers={"WWW-Authenticate": 'Basic realm="Flexpower EMS Kit"'})
+    # ------------------------------------------------------------- helpers
+    def client_ip(request: Request) -> str:
+        peer = request.client.host if request.client else "unknown"
+        # cloudflared connects from this PC; the visitor's address is in CF-Connecting-IP
+        if peer in ("127.0.0.1", "::1"):
+            return request.headers.get("cf-connecting-ip") or peer
+        return peer
 
-    def admin(user: dict = Depends(current_user)) -> dict:
+    def is_https(request: Request) -> bool:
+        setting = web.get("secure_cookies", "auto")
+        if isinstance(setting, bool):
+            return setting
+        return (request.url.scheme == "https"
+                or request.headers.get("x-forwarded-proto", "").lower() == "https"
+                or '"https"' in request.headers.get("cf-visitor", ""))
+
+    def start_session(request: Request, response: Response, username: str) -> None:
+        token, _ = sessions.create(username, client_ip(request))
+        response.set_cookie(COOKIE, token, httponly=True, samesite="lax", secure=is_https(request),
+                            path="/", max_age=sessions.max)
+
+    def user_for(session: Session) -> dict[str, Any] | None:
+        if not login_required:
+            return {"username": GUEST, "role": "admin"}
+        u = users.get(session.username)  # removing a user from config revokes their sessions
+        return {"username": u["username"], "role": u.get("role", "viewer")} if u else None
+
+    def session_and_user(request: Request) -> tuple[Session, dict[str, Any]] | None:
+        s = sessions.get(request.cookies.get(COOKIE))
+        if s is None:
+            return None
+        u = user_for(s)
+        return (s, u) if u else None
+
+    def current_user(request: Request) -> dict[str, Any]:
+        su = session_and_user(request)
+        if su is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Login required")
+        return su[1]
+
+    def reject_cross_site(request: Request) -> None:
+        if request.headers.get("sec-fetch-site") == "cross-site":
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Cross-site request blocked")
+
+    def admin_action(request: Request) -> dict[str, Any]:
+        """For POSTs that change something: session + CSRF token + admin role."""
+        su = session_and_user(request)
+        if su is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Login required")
+        session, user = su
+        reject_cross_site(request)
+        if not secrets.compare_digest(request.headers.get("x-csrf-token", ""), session.csrf):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Missing or invalid CSRF token")
         if user["role"] != "admin":
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin role required")
         return user
@@ -45,6 +117,7 @@ def create_app(cfg: Config, db: Database) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
+    # ------------------------------------------------------------- public routes
     @app.get("/static/{name}")
     def static_file(name: str):
         f = (STATIC / name).resolve()
@@ -57,15 +130,61 @@ def create_app(cfg: Config, db: Database) -> FastAPI:
         lv = analytics.live(cfg, db)
         return {"ok": True, "meters_online": lv["online"], "meters_total": lv["total"]}
 
+    @app.get("/login", response_class=HTMLResponse)
+    def login_page(request: Request):
+        if session_and_user(request) is not None:
+            return RedirectResponse("/", status.HTTP_303_SEE_OTHER)
+        if not login_required:  # no users configured: hand out a guest session
+            resp = RedirectResponse("/", status.HTTP_303_SEE_OTHER)
+            start_session(request, resp, GUEST)
+            return resp
+        return FileResponse(STATIC / "login.html")
+
+    @app.post("/api/login")
+    def login(body: LoginBody, request: Request):
+        reject_cross_site(request)
+        if not login_required:
+            raise HTTPException(400, "Login is disabled; no users are configured")
+        ip = client_ip(request)
+        user_key, ip_key = f"user:{body.username.strip().lower()}", f"ip:{ip}"
+        wait = limiter.locked_for([user_key, ip_key])
+        if wait:
+            log.warning("login blocked (locked) user=%r ip=%s", body.username, ip)
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                                f"Too many failed attempts. Try again in {math.ceil(wait / 60)} minute(s).")
+        u = users.get(body.username.strip())
+        ok = verify_password(body.password, u["password_hash"] if u else dummy_hash)
+        if not (u and ok):
+            limiter.failure([user_key, ip_key])
+            log.warning("login failed user=%r ip=%s", body.username, ip)
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid username or password")
+        limiter.success([user_key])
+        log.info("login ok user=%s ip=%s", u["username"], ip)
+        resp = JSONResponse({"ok": True})
+        start_session(request, resp, u["username"])
+        return resp
+
+    @app.post("/api/logout")
+    def logout(request: Request):
+        reject_cross_site(request)
+        sessions.delete(request.cookies.get(COOKIE))
+        resp = JSONResponse({"ok": True, "login_required": login_required})
+        resp.delete_cookie(COOKIE, path="/")
+        return resp
+
+    # ------------------------------------------------------------- dashboard
     @app.get("/", response_class=HTMLResponse)
-    def index(user: dict = Depends(current_user)):
-        return FileResponse(STATIC / "index.html")
+    def index(request: Request):
+        if session_and_user(request) is None:
+            return RedirectResponse("/login", status.HTTP_303_SEE_OTHER)
+        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-store"})
 
     @app.get("/api/config")
-    def get_config(user: dict = Depends(current_user)):
+    def get_config(request: Request, user: dict = Depends(current_user)):
         return {
             "site": cfg.site_name, "currency": cfg.currency, "timezone": str(cfg.tz),
-            "poll_seconds": cfg.poll_seconds, "user": user,
+            "poll_seconds": cfg.poll_seconds, "user": user, "login_required": login_required,
+            "csrf": session_and_user(request)[0].csrf,
             "periods": analytics.PERIOD_LABELS,
             "meters": [{"id": m.id, "name": m.name, "group": m.group, "main": m.main,
                         "protocol": m.protocol} for m in cfg.meters],
@@ -122,7 +241,8 @@ def create_app(cfg: Config, db: Database) -> FastAPI:
         return [dict(r) for r in db.recent_reports()]
 
     @app.post("/api/reports/send")
-    def send_report(kind: str = Query(..., pattern="^(daily|weekly|monthly)$"), user: dict = Depends(admin)):
+    def send_report(kind: str = Query(..., pattern="^(daily|weekly|monthly)$"), user: dict = Depends(admin_action)):
+        log.info("report %s sent manually by %s", kind, user["username"])
         return reports.run_scheduled_report(cfg, db, kind)
 
     @app.middleware("http")
@@ -131,6 +251,9 @@ def create_app(cfg: Config, db: Database) -> FastAPI:
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["Referrer-Policy"] = "same-origin"
+        resp.headers["Content-Security-Policy"] = CSP
+        if request.url.path.startswith("/api/"):
+            resp.headers["Cache-Control"] = "no-store"
         return resp
 
     return app
