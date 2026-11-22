@@ -6,6 +6,7 @@
     python -m ems report weekly --html out.html [--send]
     python -m ems hash-password            make a password hash for config.yaml
     python -m ems set-smtp-password        store the email password encrypted (Windows DPAPI)
+    python -m ems scada-map                Modbus register map + OPC UA tag list for SCADA/PCS 7
 """
 from __future__ import annotations
 
@@ -45,6 +46,7 @@ def cmd_run(args, cfg) -> None:
     import uvicorn
 
     from .collector import Collector
+    from .integrations import IntegrationManager
     from .scheduler import start_scheduler
     from .web import create_app
 
@@ -52,12 +54,15 @@ def cmd_run(args, cfg) -> None:
     collector = Collector(cfg, db)
     collector.start()
     scheduler = start_scheduler(cfg, db)
+    integrations = IntegrationManager(cfg, db)
+    integrations.start()
     web = cfg.section("web")
     host, port = args.host or web.get("host", "127.0.0.1"), args.port or int(web.get("port", 8080))
     log.info("dashboard on http://%s:%s", host, port)
     try:
-        uvicorn.run(create_app(cfg, db), host=host, port=port, log_level="warning")
+        uvicorn.run(create_app(cfg, db, integrations), host=host, port=port, log_level="warning")
     finally:
+        integrations.stop()
         scheduler.shutdown(wait=False)
         collector.stop()
 
@@ -128,6 +133,19 @@ def cmd_report(args, cfg) -> None:
     print(f"Wrote {out} and {len(report['attachments'])} CSV files. Subject: {report['subject']}")
 
 
+def cmd_scada_map(args, cfg) -> None:
+    """Print / save the Modbus register map and OPC UA tag list for SCADA engineers."""
+    from .integrations.tags import tag_rows, tags_csv
+
+    out = Path(args.out or cfg.base_dir / "data" / "scada-tags.csv")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(tags_csv(cfg))
+    rows = tag_rows(cfg)
+    for r in rows[:16]:
+        print(f"  {r['address']:>5}  {r['type']:<8} {r['meter']:<28} {r['value']:<22} {r['opcua']}")
+    print(f"  ... {len(rows)} values in total. Full list written to {out}")
+
+
 def cmd_hash_password(args, cfg) -> None:
     from .auth import hash_password
 
@@ -174,6 +192,8 @@ def main(argv: list[str] | None = None) -> None:
     rp.add_argument("--to", nargs="*", help="override recipients when sending")
     sub.add_parser("hash-password")
     sub.add_parser("set-smtp-password")
+    sm = sub.add_parser("scada-map")
+    sm.add_argument("--out", help="CSV file to write (default data/scada-tags.csv)")
     args = p.parse_args(argv)
 
     if args.cmd == "hash-password":
@@ -184,7 +204,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(f"Config error: {exc}")
     setup_logging(cfg.base_dir, args.verbose)
     {"run": cmd_run, "seed-demo": cmd_seed_demo, "test-meter": cmd_test_meter,
-     "report": cmd_report, "set-smtp-password": cmd_set_smtp_password}[args.cmd](args, cfg)
+     "report": cmd_report, "set-smtp-password": cmd_set_smtp_password,
+     "scada-map": cmd_scada_map}[args.cmd](args, cfg)
 
 
 if __name__ == "__main__":

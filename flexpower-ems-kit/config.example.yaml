@@ -73,6 +73,41 @@ reports:
     recipients: ["owner@yourcompany.com", "plant.manager@yourcompany.com"]
 
 # ---------------------------------------------------------------------------
+# SCADA / PCS 7 connections (plugins). They only PUBLISH data: no SCADA can
+# change meters, settings or stored data through them.
+# Run `python -m ems scada-map` (or use Reports > SCADA connections in the
+# dashboard) to get every tag with its Modbus address and OPC UA NodeId.
+# ---------------------------------------------------------------------------
+integrations:
+  # OPC UA server - recommended for PCS 7 OS / WinCC, Ignition, AVEVA, Kepware.
+  - type: opcua
+    enabled: false
+    endpoint: "opc.tcp://0.0.0.0:4840/flexpower/"   # use this PC's control-network IP instead of 0.0.0.0
+    security: sign_encrypt          # sign_encrypt (recommended) | none | both
+    allow_anonymous: false          # true only on an isolated control network
+    users:                          # hash with: python -m ems hash-password
+      # - username: pcs7
+      #   password_hash: "pbkdf2_sha256$...."
+    # trusted_clients_dir: data/opcua/trusted   # if set, only client certificates copied here may connect
+    update_seconds: 5
+
+  # Read-only Modbus TCP server - any SCADA or PLC (incl. PCS 7 AS with a Modbus TCP library).
+  - type: modbus_tcp
+    enabled: false
+    host: "0.0.0.0"                 # bind to the control-network IP
+    port: 502
+    word_order: big                 # big = high word first (S7 REAL); little if your SCADA expects swapped words
+    allow_ips: []                   # e.g. ["192.168.10.20", "192.168.10.0/24"]; empty = any address
+    update_seconds: 5
+
+  # Your own plugin (Python file in the plugins/ folder), e.g. the CSV example:
+  - type: custom
+    enabled: false
+    class: "example_csv_export:CsvExport"
+    path: "data/live-values.csv"
+    update_seconds: 30
+
+# ---------------------------------------------------------------------------
 # Register maps. A profile describes which Modbus registers hold which value,
 # so each meter below only needs to name its profile.
 #

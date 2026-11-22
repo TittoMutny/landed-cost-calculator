@@ -220,6 +220,8 @@ tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
 .status-chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-secondary); }
 .status-chip.sent { background: var(--good-soft); color: var(--good-text); }
 .status-chip.failed { background: var(--critical-soft); color: var(--critical-text); }
+.integ { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+.integ b { font-size: 13px; } .integ small { grid-column: 2 / 4; color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
 
 /* ---------- drawer ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(10,10,8,.35); z-index: 40; opacity: 0; pointer-events: none; transition: opacity .2s; }
@@ -462,6 +464,11 @@ tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
       <div class="card">
         <div class="card-head"><div><h2>Schedule</h2><p>Set in config.yaml</p></div></div>
         <div class="kv" id="schedule"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h2>SCADA connections</h2><p>OPC UA / Modbus TCP for PCS 7, WinCC and other SCADA</p></div></div>
+        <div id="integrations" style="display:grid;gap:8px"></div>
+        <button class="btn" id="tagsBtn" style="margin-top:12px;width:100%"><svg class="i"><use href="#i-down"/></svg>Tag list for SCADA engineers (CSV)</button>
       </div>
       <div class="card">
         <div class="card-head"><div><h2>Recent sends</h2></div></div>
@@ -983,6 +990,16 @@ async function loadReports() {
   const row = (k) => { const x = r[k]; return x ? `<span>${k[0].toUpperCase() + k.slice(1)} report</span><span>${x.enabled ? `On · ${x.recipients} recipient${x.recipients === 1 ? "" : "s"}` : "Off"}</span>` : ""; };
   $("schedule").innerHTML = `<span>Email sending</span><span>${CFG.email_enabled ? "Enabled" : "Disabled"}</span>` + row("daily") + row("weekly") + row("monthly");
   try {
+    const { integrations } = await api("/api/integrations");
+    const label = { opcua: "OPC UA server", modbus_tcp: "Modbus TCP server" };
+    $("integrations").innerHTML = integrations.length ? integrations.map(x => {
+      const st = x.error ? "failed" : x.running ? "sent" : "";
+      const txt = x.error ? "Error" : x.running ? (x.clients != null ? `Running · ${x.clients} client${x.clients === 1 ? "" : "s"}` : "Running") : "Stopped";
+      return `<div class="integ"><span class="pulse ${x.running && !x.error ? "" : "off"}"></span><b>${esc(label[x.type] || x.name)}</b>
+        <span class="status-chip ${st}">${esc(txt)}</span><small>${esc(x.error || x.endpoint || "")}</small></div>`; }).join("")
+      : `<p class="hint" style="margin:0">None enabled. Turn on <b>opcua</b> or <b>modbus_tcp</b> under <code>integrations:</code> in config.yaml.</p>`;
+  } catch {}
+  try {
     const log = await api("/api/reports/log");
     $("reportLog").innerHTML = log.length ? `<thead><tr><th>When</th><th class="l">Report</th><th class="l">Status</th></tr></thead><tbody>${log.slice(0, 8).map(x =>
       `<tr style="cursor:default" title="${esc(x.detail || x.recipients || "")}"><td class="l">${new Date(x.ts * 1000).toLocaleString(undefined, { timeZone: CFG.timezone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
@@ -997,6 +1014,7 @@ $("sendNow").onclick = async () => {
     toast(j.status === "sent" ? `Sent to ${j.recipients.join(", ")}` : `${j.status}: ${j.reason}`); loadReports(); }
   catch (e) { toast("Failed: " + e.message); }
 };
+$("tagsBtn").onclick = () => location.href = "/api/scada-tags.csv";
 $$("[data-dl]").forEach(b => b.onclick = () => location.href = `/api/export.csv?kind=${b.dataset.dl}&${rangeQuery()}`);
 
 /* ============================== start ============================== */

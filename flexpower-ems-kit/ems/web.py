@@ -43,7 +43,7 @@ class LoginBody(BaseModel):
     password: str = Field(max_length=200)
 
 
-def create_app(cfg: Config, db: Database) -> FastAPI:
+def create_app(cfg: Config, db: Database, integrations=None) -> FastAPI:
     app = FastAPI(title="Flexpower EMS Kit", docs_url=None, redoc_url=None, openapi_url=None)
     web = cfg.section("web")
     users = {u["username"]: u for u in (web.get("users") or []) if u.get("username")}
@@ -257,6 +257,22 @@ def create_app(cfg: Config, db: Database) -> FastAPI:
     def preview_report(kind: str = Query("monthly", pattern="^(daily|weekly|monthly)$"),
                        user: dict = Depends(current_user)):
         return reports.build_report(cfg, db, kind)["html"]
+
+    @app.get("/api/integrations")
+    def get_integrations(user: dict = Depends(current_user)):
+        from .integrations.modbus_server import register_map
+
+        status_list = integrations.status() if integrations else []
+        modbus = any(s["type"] == "modbus_tcp" for s in status_list)
+        return {"integrations": status_list,
+                "modbus_map": register_map([(m.id, m.name) for m in cfg.meters]) if modbus else []}
+
+    @app.get("/api/scada-tags.csv")
+    def scada_tags(user: dict = Depends(current_user)):
+        from .integrations.tags import tags_csv
+
+        return Response(tags_csv(cfg), media_type="text/csv",
+                        headers={"Content-Disposition": 'attachment; filename="flexpower-scada-tags.csv"'})
 
     @app.get("/api/reports/log")
     def report_log(user: dict = Depends(current_user)):

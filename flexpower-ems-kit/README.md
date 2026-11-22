@@ -15,6 +15,8 @@ one Windows PC on the plant network and:
 - **emails** weekly and monthly reports with plain-language findings and CSV attachments
 - is published online safely through **Cloudflare Tunnel + Cloudflare Access**,
   so the owner can open it from anywhere without opening ports on the firewall
+- **feeds SCADA / Siemens PCS 7** through plugins: an **OPC UA server** and a
+  read-only **Modbus TCP server**, plus your own Python plugins
 
 Adding a meter is one entry in `config.yaml`. The dashboard, reports and
 analysis pick it up automatically.
@@ -214,6 +216,116 @@ How sign-in is protected:
 - Session cookies are HttpOnly and, over HTTPS, Secure. Only a hash of the cookie is
   stored, so a copied database can't be used to sign in.
 
+## Connecting to SCADA or Siemens PCS 7
+
+Plugins publish the EMS values to other systems. They **only publish**: no SCADA,
+PLC or OPC client can change meters, settings or stored data through them.
+Enable them under `integrations:` in `config.yaml` and restart.
+
+| Plugin | Use it for | Port |
+|---|---|---|
+| `opcua` | **PCS 7 OS / WinCC**, WinCC OA, Ignition, AVEVA, Kepware, any OPC UA client | 4840 |
+| `modbus_tcp` | Any SCADA with a Modbus TCP driver; PLCs, including a PCS 7 AS with a Modbus TCP block library | 502 |
+| `custom` | Your own Python file in `plugins/` (MQTT, SQL, a historian...). See `plugins/example_csv_export.py` | – |
+
+**Get the tag list** for the SCADA engineer: *Reports → SCADA connections →
+Tag list (CSV)* in the dashboard, or `python -m ems scada-map`. It lists every
+value with its Modbus address and OPC UA NodeId.
+
+### What is published
+
+For the site: total kW, kWh today, kWh this month, meters online / configured
+and a heartbeat counter that increases with every update, so the SCADA can alarm
+if the EMS stops. For each meter: kW, energy counter, voltage, current, power
+factor, kWh today, kWh this month, online flag and time of the last reading.
+Values refresh every `update_seconds` (default 5 s).
+
+### OPC UA (recommended for PCS 7)
+
+```yaml
+integrations:
+  - type: opcua
+    enabled: true
+    endpoint: "opc.tcp://192.168.10.5:4840/flexpower/"   # this PC's control-network address
+    security: sign_encrypt
+    allow_anonymous: false
+    users:
+      - username: pcs7
+        password_hash: "pbkdf2_sha256$..."                # python -m ems hash-password
+```
+
+- Tags: `Objects / FlexpowerEMS / Site / TotalPower_kW`,
+  `Objects / FlexpowerEMS / Meters / <meter id> / Power_kW`, and so on. NodeIds are
+  predictable strings such as `ns=2;s=Meters.compressor.Power_kW`. The namespace URI is
+  `urn:flexpower:ems`. Its index is normally 2, but resolve it from the URI if your client can.
+- When a meter is offline, its measured values carry the OPC UA status
+  **BadCommunicationError**, so the SCADA shows them as bad quality instead of stale numbers.
+- **Security.** `sign_encrypt` (Basic256Sha256) is the default. On first start the EMS
+  creates a server certificate in `data\opcua\`. The SCADA has to trust that certificate,
+  and the EMS accepts client certificates. To accept only known SCADA stations, set
+  `trusted_clients_dir: data/opcua/trusted` and copy their certificates (DER files) there.
+  Use `security: none` only on an isolated test network.
+- Every OPC UA user is read-only. No account gets administrator rights in the OPC UA server.
+
+**PCS 7 OS / WinCC:** WinCC (and therefore the PCS 7 OS) can read external OPC UA
+servers through its OPC UA connection in Tag Management. Create a connection to the
+endpoint above, accept the EMS server certificate, then browse
+`FlexpowerEMS` and pick the tags you want. Menu names and licensing vary between
+WinCC / PCS 7 versions, so check the Siemens documentation for yours. If the OS
+can't act as an OPC UA client, use the Modbus TCP server, or connect a gateway
+(for example an OPC UA to OPC DA wrapper) between the two.
+
+### Modbus TCP
+
+```yaml
+  - type: modbus_tcp
+    enabled: true
+    host: "192.168.10.5"
+    port: 502
+    word_order: big                 # S7 REAL order; 'little' if your SCADA swaps words
+    allow_ips: ["192.168.10.20"]    # only the SCADA station(s) may connect
+```
+
+- Function codes 03 and 04 both return the same table. Every write is refused (exception 01).
+- Site values start at register 0. Meter *n* (counting from 0 in `config.yaml` order)
+  starts at `100 + 20 × n`. **Add new meters at the end of the list** so existing
+  addresses don't move.
+- Floats are IEEE-754 float32 in two registers. Unavailable values are NaN.
+  The energy counter is also published as a uint32 in 0.1 kWh steps, for full
+  precision on large counters.
+
+### Firewall
+
+Allow only the SCADA station(s) to reach these ports:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\windows\open-scada-ports.ps1 -ScadaIp 192.168.10.20
+```
+
+Bind `endpoint` / `host` to the control-network IP rather than `0.0.0.0`, so
+the servers can't be reached from the office network at all.
+
+### Writing your own plugin
+
+```python
+# plugins/my_mqtt.py
+from ems.integrations import Integration
+
+class MyMqtt(Integration):
+    def start(self):   ...   # connect; self.options holds your config block
+    def publish(self, snapshot):   # called every update_seconds
+        for m in snapshot["meters"]:
+            ...  # m["id"], m["power_kw"], m["energy_kwh"], m["online"], ...
+    def stop(self):    ...
+```
+
+```yaml
+  - {type: custom, enabled: true, class: "my_mqtt:MyMqtt", update_seconds: 10}
+```
+
+A plugin that fails to load or start is reported in the dashboard and the log.
+It never stops metering.
+
 ## Backups
 
 Everything is in `data\ems.sqlite3` plus your `config.yaml`. Copy both to a
@@ -230,6 +342,8 @@ ems/
   scheduler.py   weekly/monthly jobs, data retention
   web.py         dashboard + JSON API + login
   static/        dashboard page (Chart.js bundled, works offline)
+  integrations/  SCADA plugins: OPC UA server, read-only Modbus TCP server, plugin loader
+plugins/         your own plugins (example: CSV export)
 deploy/windows/  install and service scripts
 tests/           unit tests and a real Modbus TCP round-trip test
 ```
