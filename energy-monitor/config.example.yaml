@@ -1,0 +1,137 @@
+# ---------------------------------------------------------------------------
+# Energy Monitor configuration
+# Copy this file to config.yaml and edit. Restart the service after changes.
+# ---------------------------------------------------------------------------
+
+site:
+  name: "Demo Factory"
+  timezone: "Africa/Nairobi"        # IANA name, used for days/weeks/months in reports
+  currency: "KES"
+  co2_kg_per_kwh: 0.25              # grid emission factor, for the CO2 line in reports
+
+tariff:
+  rate_per_kwh: 22.5                # flat energy rate
+  # Optional time-of-use peak rate. Remove this block for a flat tariff.
+  peak:
+    rate_per_kwh: 28.0
+    start: "08:00"
+    end: "20:00"
+    weekdays_only: true
+
+collector:
+  poll_seconds: 60                  # how often every meter is read
+  raw_retention_days: 60            # raw readings kept this long; 15-min totals are kept forever
+
+storage:
+  database: "data/ems.sqlite3"
+
+web:
+  host: "127.0.0.1"                 # keep 127.0.0.1 when publishing through Cloudflare Tunnel
+  port: 8080
+  # Users for the dashboard login. Create a hash with:
+  #   python -m ems hash-password
+  # Leave the list empty to disable the login (only do that behind Cloudflare Access).
+  users:
+    # - username: admin
+    #   password_hash: "pbkdf2_sha256$...."
+    #   role: admin                 # admin can trigger reports; viewer can only look
+
+email:
+  enabled: false
+  smtp_host: "smtp.office365.com"
+  smtp_port: 587
+  security: "starttls"              # starttls | ssl | none
+  username: "energy@yourcompany.com"
+  password_env: "EMS_SMTP_PASSWORD" # the password is read from this environment variable
+  from_addr: "Energy Monitor <energy@yourcompany.com>"
+  dashboard_url: "https://energy.yourcompany.com"   # linked from the emails
+
+reports:
+  weekly:
+    enabled: true
+    day_of_week: "mon"
+    time: "07:00"
+    recipients: ["plant.manager@yourcompany.com"]
+  monthly:
+    enabled: true
+    day_of_month: 1
+    time: "07:30"
+    recipients: ["owner@yourcompany.com", "plant.manager@yourcompany.com"]
+
+# ---------------------------------------------------------------------------
+# Register maps. A profile describes which Modbus registers hold which value,
+# so each meter below only needs to name its profile.
+#
+#   address : zero-based register address. If the manual lists "30073" or
+#             "register 73" (1-based), enter 72.
+#   function: holding (FC03) | input (FC04)
+#   type    : uint16 | int16 | uint32 | int32 | uint64 | int64 | float32 | float64
+#   scale   : multiplier applied after decoding (e.g. 0.001 to turn W into kW)
+#   word_order: big (default, high word first) | little
+#
+# Known quantity names: energy_kwh (cumulative import kWh, used for consumption),
+# power_kw, voltage_v, current_a, pf. Any other name is stored and shown too.
+#
+# ALWAYS check the addresses against your meter's Modbus manual.
+# ---------------------------------------------------------------------------
+profiles:
+  eastron_sdm630:                   # Eastron SDM630 / SDM630-Modbus (RTU)
+    registers:
+      voltage_v:  {address: 0,   function: input, type: float32}
+      current_a:  {address: 6,   function: input, type: float32}
+      power_kw:   {address: 52,  function: input, type: float32, scale: 0.001}
+      pf:         {address: 62,  function: input, type: float32}
+      energy_kwh: {address: 72,  function: input, type: float32}
+
+  eastron_sdm120:                   # Eastron SDM120 single phase (RTU)
+    registers:
+      voltage_v:  {address: 0,   function: input, type: float32}
+      current_a:  {address: 6,   function: input, type: float32}
+      power_kw:   {address: 12,  function: input, type: float32, scale: 0.001}
+      pf:         {address: 30,  function: input, type: float32}
+      energy_kwh: {address: 72,  function: input, type: float32}
+
+  generic_holding_float:            # template for a TCP meter using holding registers
+    registers:
+      power_kw:   {address: 100, function: holding, type: float32}
+      energy_kwh: {address: 200, function: holding, type: float32}
+
+# ---------------------------------------------------------------------------
+# Meters. Add one entry per meter; nothing else needs to change.
+#   protocol: tcp | rtu | simulated
+#   group   : free text used to roll meters up (line, building, utility...)
+#   main    : true for the incoming supply meter. It is not added to the
+#             sub-meter total; the dashboard shows main minus sub-meters as
+#             "unmetered" consumption.
+# ---------------------------------------------------------------------------
+meters:
+  # --- Modbus TCP example (meter or gateway on the LAN) ---
+  # - id: main_incomer
+  #   name: "Main Incomer"
+  #   group: "Utility"
+  #   main: true
+  #   protocol: tcp
+  #   host: 192.168.1.50
+  #   port: 502
+  #   unit_id: 1
+  #   profile: generic_holding_float
+
+  # --- Modbus RTU example (RS-485 via USB adapter; several meters share a port) ---
+  # - id: compressor_1
+  #   name: "Air Compressor 1"
+  #   group: "Utilities"
+  #   protocol: rtu
+  #   serial_port: COM3               # /dev/ttyUSB0 on Linux
+  #   baudrate: 9600
+  #   parity: N                       # N | E | O
+  #   stopbits: 1
+  #   unit_id: 2
+  #   profile: eastron_sdm630
+
+  # --- Simulated meters so the dashboard works before any hardware is wired ---
+  - {id: main_incomer, name: "Main Incomer",      group: "Utility",    protocol: simulated, main: true}
+  - {id: cnc_1,        name: "CNC Machine 1",     group: "Production", protocol: simulated, sim_kw: 18, sim_idle_kw: 2.5}
+  - {id: cnc_2,        name: "CNC Machine 2",     group: "Production", protocol: simulated, sim_kw: 15, sim_idle_kw: 1.2}
+  - {id: compressor,   name: "Air Compressor",    group: "Utilities",  protocol: simulated, sim_kw: 22, sim_idle_kw: 7}
+  - {id: hvac,         name: "HVAC",              group: "Building",   protocol: simulated, sim_kw: 12, sim_idle_kw: 3}
+  - {id: lighting,     name: "Lighting",          group: "Building",   protocol: simulated, sim_kw: 4,  sim_idle_kw: 0.8}

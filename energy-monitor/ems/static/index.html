@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Energy Monitor</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f3f4f2; --surface-1: #fcfcfb; --border: #e3e2de;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7b7a75;
+  --grid: #e8e7e3; --accent: #2a78d6;
+  --good: #0ca30c; --critical: #d03b3b; --good-text: #006300; --critical-text: #b42727;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s-other:#9a9993;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #111110; --surface-1: #1a1a19; --border: #2e2e2b;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --grid: #2a2a27; --accent: #3987e5; --good-text: #3fc23f; --critical-text: #e66767;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#0ca30c; --s7:#9085e9; --s-other:#6d6c66;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111110; --surface-1: #1a1a19; --border: #2e2e2b;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --grid: #2a2a27; --accent: #3987e5; --good-text: #3fc23f; --critical-text: #e66767;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#0ca30c; --s7:#9085e9; --s-other:#6d6c66;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text-primary);
+  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 24px;
+  background: var(--surface-1); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+header .site { color: var(--text-muted); font-size: 12px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
+select, button, input[type=date] { font: inherit; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+button { cursor: pointer; } button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; } .seg button[aria-pressed=true] { background: var(--accent); color: #fff; }
+main { max-width: 1400px; margin: 0 auto; padding: 20px 24px 40px; display: grid; gap: 16px;
+  grid-template-columns: repeat(12, 1fr); }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+.card h2 { font-size: 14px; margin: 0 0 12px; font-weight: 600; }
+.card h2 .sub { color: var(--text-muted); font-weight: 400; margin-left: 6px; }
+.span-12 { grid-column: span 12; } .span-8 { grid-column: span 8; } .span-7 { grid-column: span 7; }
+.span-5 { grid-column: span 5; } .span-4 { grid-column: span 4; }
+.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; grid-column: span 12; }
+.tile .label { color: var(--text-secondary); font-size: 12px; }
+.tile .value { font-size: 26px; font-weight: 600; margin: 2px 0; font-variant-numeric: tabular-nums; }
+.tile .note { font-size: 12px; color: var(--text-muted); }
+.up { color: var(--critical-text); } .down { color: var(--good-text); }
+.chart { position: relative; height: 300px; } .chart.tall { height: 340px; }
+ul.insights { margin: 0; padding-left: 18px; } ul.insights li { margin-bottom: 6px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+th { color: var(--text-secondary); font-weight: 500; font-size: 12px; position: sticky; top: 0; background: var(--surface-1); cursor: pointer; }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+.table-wrap { overflow-x: auto; max-height: 460px; }
+.muted { color: var(--text-muted); font-size: 12px; }
+.status { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot.on { background: var(--good); } .dot.off { background: var(--critical); }
+.chip { font-size: 12px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-secondary); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: -4px 0 10px; font-size: 12px; color: var(--text-secondary); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.bar-cell { width: 120px; } .bar-cell div { height: 8px; background: var(--accent); border-radius: 0 4px 4px 0; }
+#toast { position: fixed; bottom: 20px; right: 20px; background: var(--text-primary); color: var(--surface-1);
+  padding: 10px 14px; border-radius: 8px; display: none; max-width: 360px; }
+#custom { display: none; gap: 6px; align-items: center; }
+@media (max-width: 1100px) { .tiles { grid-template-columns: repeat(3, 1fr); }
+  .span-8, .span-7, .span-5, .span-4 { grid-column: span 12; } }
+@media (max-width: 640px) { header { position: static; } header, main { padding-left: 16px; padding-right: 16px; }
+  .tiles { grid-template-columns: repeat(2, 1fr); } .controls { margin-left: 0; } .tile .value { font-size: 20px; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Energy Monitor</h1>
+    <div class="site" id="site">&nbsp;</div>
+  </div>
+  <span class="chip" id="liveChip">connecting…</span>
+  <div class="controls">
+    <select id="period" aria-label="Period"></select>
+    <span id="custom">
+      <input type="date" id="from" aria-label="From"> – <input type="date" id="to" aria-label="To">
+      <button id="applyCustom">Apply</button>
+    </span>
+    <div class="seg" role="group" aria-label="Break down by">
+      <button id="byMeter" aria-pressed="false">By meter</button>
+      <button id="byGroup" aria-pressed="true">By area</button>
+    </div>
+    <button id="exportBtn" title="Download the table below as CSV">Export CSV</button>
+    <button id="previewBtn" title="Open last month's email report">Report preview</button>
+    <button id="sendBtn" class="primary" hidden>Send report…</button>
+  </div>
+</header>
+
+<main>
+  <section class="tiles">
+    <div class="card tile"><div class="label">Energy</div><div class="value" id="tEnergy">–</div><div class="note" id="tEnergyNote">&nbsp;</div></div>
+    <div class="card tile"><div class="label">Cost</div><div class="value" id="tCost">–</div><div class="note" id="tCostNote">&nbsp;</div></div>
+    <div class="card tile"><div class="label">Peak demand</div><div class="value" id="tPeak">–</div><div class="note" id="tPeakNote">&nbsp;</div></div>
+    <div class="card tile"><div class="label">Load right now</div><div class="value" id="tLive">–</div><div class="note" id="tLiveNote">&nbsp;</div></div>
+    <div class="card tile"><div class="label">CO₂</div><div class="value" id="tCo2">–</div><div class="note" id="tCo2Note">&nbsp;</div></div>
+  </section>
+
+  <section class="card span-8">
+    <h2>Consumption over time <span class="sub" id="tsSub"></span></h2>
+    <div class="legend" id="tsLegend"></div>
+    <div class="chart tall"><canvas id="tsChart" aria-label="Consumption over time"></canvas></div>
+  </section>
+
+  <section class="card span-4">
+    <h2>Key findings</h2>
+    <ul class="insights" id="insights"><li class="muted">Loading…</li></ul>
+  </section>
+
+  <section class="card span-7">
+    <h2>Who uses the most <span class="sub">kWh in period</span></h2>
+    <div class="chart" id="rankWrap"><canvas id="rankChart" aria-label="Consumption by meter"></canvas></div>
+  </section>
+
+  <section class="card span-5">
+    <h2>Typical day <span class="sub">average site kW by hour</span></h2>
+    <div class="legend" id="profLegend"></div>
+    <div class="chart"><canvas id="profChart" aria-label="Average load by hour of day"></canvas></div>
+  </section>
+
+  <section class="card span-12">
+    <h2>Meters in this period</h2>
+    <div class="table-wrap"><table id="meterTable"></table></div>
+    <p class="muted" id="tableNote"></p>
+  </section>
+
+  <section class="card span-12">
+    <h2>Live readings <span class="sub" id="liveSub"></span></h2>
+    <div class="table-wrap"><table id="liveTable"></table></div>
+  </section>
+</main>
+<div id="toast" role="status"></div>
+
+<script src="/static/chart.umd.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const nf = (v, d = 0) => v == null || isNaN(v) ? "–" : Number(v).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const MAX_SERIES = 7; // past seven, the rest fold into "Other"
+
+let CFG = null, state = { period: "this_month", from: null, to: null, by: "group" }, charts = {}, lastSummary = null;
+const colorOf = {}; // series name -> slot index, fixed for the session so colours follow the entity
+
+function slotColor(name) {
+  if (name === "Other") return css("--s-other");
+  if (!(name in colorOf)) colorOf[name] = Object.keys(colorOf).length % MAX_SERIES;
+  return css(`--s${colorOf[name] + 1}`);
+}
+
+async function api(path) {
+  const r = await fetch(path, { credentials: "same-origin" });
+  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+  return r.json();
+}
+function rangeQuery() {
+  return state.period === "custom" && state.from && state.to
+    ? `start=${state.from}&end=${state.to}` : `period=${state.period}`;
+}
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 5000); }
+function changeHtml(pct, label = "vs previous") {
+  if (pct == null) return `<span class="muted">no previous data</span>`;
+  const cls = pct > 0 ? "up" : "down";
+  return `<span class="${cls}">${pct > 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}%</span> ${label}`;
+}
+
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+Chart.defaults.font.size = 12;
+function baseOptions() {
+  Chart.defaults.color = css("--text-secondary");
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: { legend: { display: false },
+      tooltip: { backgroundColor: css("--surface-1"), titleColor: css("--text-primary"), bodyColor: css("--text-secondary"),
+                 borderColor: css("--border"), borderWidth: 1, padding: 10, boxPadding: 4 } },
+    scales: {
+      x: { grid: { display: false }, border: { color: css("--border") }, ticks: { maxRotation: 0, autoSkip: true, autoSkipPadding: 12 } },
+      y: { grid: { color: css("--grid") }, border: { display: false }, beginAtZero: true },
+    },
+  };
+}
+function legend(el, names) { $(el).innerHTML = names.map(n => `<span><i style="background:${slotColor(n)}"></i>${esc(n)}</span>`).join(""); }
+
+// ------------------------------------------------------------------ init
+async function init() {
+  CFG = await api("/api/config");
+  $("site").textContent = `${CFG.site} · ${CFG.meters.length} meters · ${CFG.timezone}`;
+  document.title = `${CFG.site} – Energy Monitor`;
+  const sel = $("period");
+  sel.innerHTML = Object.entries(CFG.periods).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("") + `<option value="custom">Custom range…</option>`;
+  sel.value = state.period;
+  sel.onchange = () => { state.period = sel.value; $("custom").style.display = sel.value === "custom" ? "inline-flex" : "none"; if (sel.value !== "custom") loadPeriod(); };
+  $("applyCustom").onclick = () => { state.from = $("from").value; state.to = $("to").value; if (state.from && state.to) loadPeriod(); };
+  $("byMeter").onclick = () => setBy("meter"); $("byGroup").onclick = () => setBy("group");
+  $("exportBtn").onclick = () => location.href = `/api/export.csv?kind=summary&${rangeQuery()}`;
+  $("previewBtn").onclick = () => window.open("/api/reports/preview?kind=monthly", "_blank");
+  if (CFG.user.role === "admin") { $("sendBtn").hidden = false; $("sendBtn").onclick = sendReport; }
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (lastSummary) loadPeriod(); });
+  await Promise.all([loadPeriod(), loadLive()]);
+  setInterval(loadLive, Math.max(10, CFG.poll_seconds) * 1000);
+  setInterval(loadPeriod, 5 * 60 * 1000);
+}
+function setBy(by) { state.by = by; $("byMeter").setAttribute("aria-pressed", by === "meter"); $("byGroup").setAttribute("aria-pressed", by === "group"); loadTimeseries(); }
+
+async function loadPeriod() {
+  try { await Promise.all([loadSummary(), loadTimeseries(), loadProfile()]); }
+  catch (e) { toast("Could not load data: " + e.message); }
+}
+
+// ------------------------------------------------------------------ summary
+async function loadSummary() {
+  const s = await api(`/api/summary?${rangeQuery()}`);
+  lastSummary = s;
+  const t = s.totals, cur = s.currency;
+  $("tEnergy").textContent = `${nf(t.kwh)} kWh`;
+  $("tEnergyNote").innerHTML = changeHtml(t.change_pct, t.compare_partial ? "vs same point last period" : "vs previous");
+  $("tCost").textContent = `${cur} ${nf(t.cost)}`;
+  $("tCostNote").textContent = t.kwh ? `avg ${cur} ${nf(t.avg_rate, 2)} per kWh` : "";
+  $("tPeak").textContent = `${nf(t.peak_demand_kw, 1)} kW`;
+  $("tPeakNote").textContent = t.peak_demand_at ? new Date(t.peak_demand_at).toLocaleString(undefined, { timeZone: CFG.timezone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+  $("tCo2").textContent = `${nf(t.co2_kg / 1000, 2)} t`;
+  $("tCo2Note").textContent = s.period.label;
+  $("insights").innerHTML = s.insights.map(i => `<li>${esc(i)}</li>`).join("") || `<li class="muted">Nothing notable.</li>`;
+  renderRanking(s); renderMeterTable(s);
+}
+
+function renderRanking(s) {
+  const rows = s.meters.filter(m => m.kwh > 0);
+  $("rankWrap").style.height = Math.max(200, rows.length * 38 + 50) + "px";
+  const opts = baseOptions();
+  opts.indexAxis = "y";
+  opts.interaction = { mode: "nearest", axis: "y", intersect: false };
+  opts.scales.x = { grid: { color: css("--grid") }, border: { display: false }, beginAtZero: true, title: { display: true, text: "kWh" } };
+  opts.scales.y = { grid: { display: false }, border: { color: css("--border") } };
+  opts.plugins.tooltip.callbacks = { label: (c) => { const m = rows[c.dataIndex]; return [` ${nf(m.kwh)} kWh · ${m.share_pct}% of sub-metered`, ` ${s.currency} ${nf(m.cost)} · peak ${nf(m.peak_kw, 1)} kW`]; } };
+  const data = { labels: rows.map(m => m.name), datasets: [{ data: rows.map(m => m.kwh), backgroundColor: css("--accent"),
+    borderRadius: { topRight: 4, bottomRight: 4 }, borderSkipped: "start", barPercentage: 0.7, categoryPercentage: 0.9 }] };
+  charts.rank?.destroy();
+  charts.rank = new Chart($("rankChart"), { type: "bar", data, options: opts });
+}
+
+const COLS = [
+  ["name", "Meter", "l"], ["group", "Area", "l"], ["kwh", "kWh"], ["share_pct", "Share"], ["cost", "Cost"],
+  ["peak_kw", "Peak kW"], ["avg_kw", "Avg kW"], ["baseload_kw", "Base load kW"], ["night_pct", "Night use"], ["change_pct", "vs previous"],
+];
+let sortKey = "kwh", sortDir = -1;
+function renderMeterTable(s) {
+  const rows = [...s.meters].sort((a, b) => ((a[sortKey] ?? -1e18) > (b[sortKey] ?? -1e18) ? 1 : -1) * sortDir);
+  const max = Math.max(1, ...s.meters.map(m => m.kwh));
+  const head = `<tr>${COLS.map(([k, l, c]) => `<th class="${c || ""}" data-k="${k}">${l}${sortKey === k ? (sortDir < 0 ? " ↓" : " ↑") : ""}</th>`).join("")}<th class="l"></th></tr>`;
+  const fmt = (m, k) => k === "share_pct" || k === "night_pct" ? `${nf(m[k], 1)}%` : k === "change_pct" ? (m[k] == null ? "–" : `<span class="${m[k] > 0 ? "up" : "down"}">${m[k] > 0 ? "+" : ""}${nf(m[k], 1)}%</span>`)
+    : k === "cost" ? nf(m[k]) : typeof m[k] === "number" ? nf(m[k], k === "kwh" ? 0 : 1) : esc(m[k]);
+  const body = rows.map(m => `<tr>${COLS.map(([k, , c]) => `<td class="${c || ""}">${fmt(m, k)}</td>`).join("")}<td class="bar-cell l"><div style="width:${m.kwh / max * 100}%"></div></td></tr>`).join("");
+  const mains = s.mains.map(m => `<tr><td class="l"><b>${esc(m.name)}</b> <span class="muted">main supply</span></td><td class="l">${esc(m.group)}</td><td>${nf(m.kwh)}</td><td></td><td>${nf(m.cost)}</td><td>${nf(m.peak_kw, 1)}</td><td>${nf(m.avg_kw, 1)}</td><td>${nf(m.baseload_kw, 1)}</td><td>${nf(m.night_pct, 1)}%</td><td>${m.change_pct == null ? "–" : nf(m.change_pct, 1) + "%"}</td><td></td></tr>`).join("");
+  $("meterTable").innerHTML = head + mains + body;
+  $("meterTable").querySelectorAll("th[data-k]").forEach(th => th.onclick = () => { const k = th.dataset.k; sortDir = sortKey === k ? -sortDir : -1; sortKey = k; renderMeterTable(s); });
+  const t = s.totals;
+  $("tableNote").textContent = t.unmetered_kwh != null
+    ? `Sub-meters cover ${nf(t.submetered_kwh)} kWh of ${nf(t.kwh)} kWh supplied; ${nf(t.unmetered_kwh)} kWh is unmetered. Costs use the configured tariff (${s.currency}).`
+    : `Total of all meters: ${nf(t.kwh)} kWh. Costs use the configured tariff (${s.currency}).`;
+}
+
+// ------------------------------------------------------------------ time series
+async function loadTimeseries() {
+  const ts = await api(`/api/timeseries?${rangeQuery()}&by=${state.by}`);
+  const unit = { "15min": "per 15 min", hour: "per hour", day: "per day", month: "per month" }[ts.bucket];
+  $("tsSub").textContent = `kWh ${unit}`;
+  let entries = Object.entries(ts.series).map(([n, v]) => [n, v, v.reduce((a, b) => a + b, 0)]).sort((a, b) => b[2] - a[2]);
+  if (entries.length > MAX_SERIES) {
+    const keep = entries.slice(0, MAX_SERIES - 1), rest = entries.slice(MAX_SERIES - 1);
+    const other = ts.labels.map((_, i) => rest.reduce((a, e) => a + e[1][i], 0));
+    entries = [...keep, ["Other", other, 0]];
+  }
+  const names = entries.map(e => e[0]);
+  legend("tsLegend", names);
+  const mainTotal = Object.values(ts.mains)[0];
+  const opts = baseOptions();
+  opts.scales.x.stacked = true; opts.scales.y.stacked = true;
+  opts.scales.y.title = { display: true, text: "kWh" };
+  opts.plugins.tooltip.itemSort = (a, b) => b.raw - a.raw;
+  opts.plugins.tooltip.callbacks = {
+    label: (c) => ` ${c.dataset.label}: ${nf(c.raw, 1)} kWh`,
+    footer: (items) => { const i = items[0].dataIndex; const sub = entries.reduce((a, e) => a + e[1][i], 0);
+      return mainTotal ? `Sub-meters ${nf(sub, 1)} kWh · main ${nf(mainTotal[i], 1)} kWh` : `Total ${nf(sub, 1)} kWh`; },
+  };
+  const surface = css("--surface-1");
+  const data = { labels: ts.labels, datasets: entries.map(([n, v]) => ({
+    label: n, data: v, backgroundColor: slotColor(n), borderColor: surface, borderWidth: { top: 1 }, borderSkipped: "bottom",
+    barPercentage: 0.85, categoryPercentage: 0.9 })) };
+  charts.ts?.destroy();
+  charts.ts = new Chart($("tsChart"), { type: "bar", data, options: opts });
+}
+
+async function loadProfile() {
+  const p = await api(`/api/profile?${rangeQuery()}`);
+  const hours = [...Array(24).keys()].map(h => `${String(h).padStart(2, "0")}:00`);
+  const sets = [["Weekdays", p.weekday, css("--s1")], ["Weekends", p.weekend, css("--s2")]].filter(s => s[1].some(v => v != null));
+  $("profLegend").innerHTML = sets.map(([n, , c]) => `<span><i style="background:${c}"></i>${n}</span>`).join("");
+  const opts = baseOptions();
+  opts.scales.y.title = { display: true, text: "kW" };
+  opts.plugins.tooltip.callbacks = { label: (c) => ` ${c.dataset.label}: ${nf(c.raw, 1)} kW` };
+  charts.prof?.destroy();
+  charts.prof = new Chart($("profChart"), { type: "line", options: opts, data: { labels: hours, datasets: sets.map(([n, v, c]) => ({
+    label: n, data: v, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.25, spanGaps: true })) } });
+}
+
+// ------------------------------------------------------------------ live
+async function loadLive() {
+  try {
+    const l = await api("/api/live");
+    $("tLive").textContent = `${nf(l.site_kw, 1)} kW`;
+    $("tLiveNote").textContent = `${l.online} of ${l.total} meters online`;
+    const chip = $("liveChip");
+    chip.innerHTML = `<span class="status"><span class="dot ${l.online === l.total ? "on" : "off"}"></span>${l.online === l.total ? "All meters online" : `${l.total - l.online} meter(s) offline`}</span>`;
+    $("liveSub").textContent = `updated ${new Date(l.ts * 1000).toLocaleTimeString(undefined, { timeZone: CFG.timezone })}`;
+    const head = `<tr><th class="l">Meter</th><th class="l">Status</th><th>kW</th><th>Voltage</th><th>Current A</th><th>PF</th><th>Meter kWh</th><th class="l">Last reading</th></tr>`;
+    const body = l.meters.map(m => { const v = m.values || {};
+      return `<tr><td class="l">${esc(m.name)}${m.main ? ' <span class="muted">main</span>' : ""}</td>
+        <td class="l"><span class="status"><span class="dot ${m.online ? "on" : "off"}"></span>${m.online ? "Online" : "Offline"}</span>${!m.online && m.error ? ` <span class="muted" title="${esc(m.error)}">${esc(m.error.slice(0, 50))}</span>` : ""}</td>
+        <td>${nf(v.power_kw, 2)}</td><td>${nf(v.voltage_v, 1)}</td><td>${nf(v.current_a, 1)}</td><td>${nf(v.pf, 2)}</td><td>${nf(v.energy_kwh, 1)}</td>
+        <td class="l muted">${m.last_seen ? new Date(m.last_seen * 1000).toLocaleString(undefined, { timeZone: CFG.timezone }) : "never"}</td></tr>`; }).join("");
+    $("liveTable").innerHTML = head + body;
+  } catch (e) { $("liveChip").textContent = "connection lost"; }
+}
+
+async function sendReport() {
+  const kind = prompt("Send which report now? Type weekly or monthly", "monthly");
+  if (!kind || !["daily", "weekly", "monthly"].includes(kind.trim())) return;
+  const r = await fetch(`/api/reports/send?kind=${kind.trim()}`, { method: "POST", credentials: "same-origin" });
+  const j = await r.json().catch(() => ({}));
+  toast(r.ok ? `${j.status}: ${j.reason || (j.recipients || []).join(", ")}` : `Failed: ${j.detail || r.status}`);
+}
+
+init().catch(e => toast("Could not start: " + e.message));
+</script>
+</body>
+</html>
