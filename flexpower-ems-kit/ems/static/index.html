@@ -248,6 +248,27 @@ tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
   transition: opacity .2s, transform .2s; pointer-events: none; max-width: calc(100% - 32px); }
 #toast.show { opacity: 1; transform: translateX(-50%); }
 
+/* ---------- subscription ---------- */
+.subbar { max-width: 1440px; margin: 14px auto 0; padding: 0 24px; }
+.subbar div { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 12px; font-size: 13px;
+  background: var(--accent-soft); color: var(--text-primary); }
+.subbar div.warn { background: color-mix(in srgb, #eda100 18%, var(--surface-1)); }
+.subbar svg { width: 18px; height: 18px; flex: none; }
+.lock { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(10px); }
+.lock .box { width: min(480px, 100%); background: var(--surface-1); border: 1px solid var(--border); border-radius: 18px;
+  padding: 26px; box-shadow: var(--shadow-lg); }
+.lock .ico { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--critical-soft); color: var(--critical-text); margin-bottom: 14px; }
+.lock .ico svg { width: 24px; height: 24px; }
+.lock h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.01em; }
+.lock p { margin: 0 0 12px; color: var(--text-secondary); }
+.lock .reason { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); color: var(--text-primary); font-size: 13px; }
+.lock .contact { display: grid; gap: 4px; margin: 14px 0; font-size: 14px; }
+.lock .contact a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.lock form { display: grid; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.lock input { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-family: Consolas, ui-monospace, monospace; letter-spacing: .03em; }
+.lock .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
 @media (max-width: 1180px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .c8, .c7, .c5, .c4 { grid-column: span 12; } }
 @media (max-width: 760px) {
   .appbar { flex-wrap: wrap; padding: 10px 16px; gap: 10px; position: static; }
@@ -311,6 +332,7 @@ tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
   </div>
 </header>
 
+<div class="subbar" id="subBar" hidden></div>
 <div class="toolbar">
   <h1 id="pageTitle">Overview</h1>
   <button class="btn ghost" id="backBtn" hidden><svg class="i"><use href="#i-back"/></svg><span>Back</span></button>
@@ -496,6 +518,23 @@ tbody tr { cursor: pointer; } tbody tr:hover { background: var(--surface-2); }
   </div>
 </aside>
 <div id="tip" role="tooltip"></div>
+<div class="lock" id="lock" hidden role="alertdialog" aria-labelledby="lockTitle">
+  <div class="box">
+    <div class="ico"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>
+    <h2 id="lockTitle">Subscription paused</h2>
+    <p id="lockText"></p>
+    <div class="reason" id="lockReason"></div>
+    <div class="contact" id="lockContact"></div>
+    <form id="lockForm" hidden>
+      <label for="lockKey" class="hint" style="font-size:12px">Licence key from Flexpower</label>
+      <input id="lockKey" placeholder="FLX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" autocapitalize="characters">
+      <div class="row"><button class="btn primary" id="lockActivate" type="submit">Activate</button>
+        <button class="btn" id="lockCheck" type="button">Check again</button></div>
+      <span class="hint" id="lockMsg"></span>
+    </form>
+    <p class="hint" id="lockNote" style="margin-top:12px"></p>
+  </div>
+</div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/static/chart.umd.js"></script>
@@ -531,10 +570,12 @@ function slotColor(kind, name) {
 async function api(path, opts = {}) {
   const r = await fetch(path, { credentials: "same-origin", ...opts });
   if (r.status === 401) { location.replace("/login"); throw new Error("signed out"); }
+  if (r.status === 402) { const j = await r.json().catch(() => ({})); showLock(j.license || {}); throw new Error("signed out"); }
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return r.json();
 }
-const post = (path) => api(path, { method: "POST", headers: { "X-CSRF-Token": CFG.csrf } });
+const post = (path, body) => api(path, { method: "POST", headers: { "X-CSRF-Token": CFG.csrf,
+  ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
 function rangeQuery() {
   return state.period === "custom" && state.from && state.to ? `start=${state.from}&end=${state.to}` : `period=${state.period}`;
 }
@@ -1025,9 +1066,59 @@ $("tagsBtn").onclick = () => location.href = "/api/scada-tags.csv";
 $$("[data-pn]").forEach(b => b.onclick = () => location.href = `/api/profinet/${b.dataset.pn}`);
 $$("[data-dl]").forEach(b => b.onclick = () => location.href = `/api/export.csv?kind=${b.dataset.dl}&${rangeQuery()}`);
 
+/* ============================== subscription ============================== */
+const LOCK_TEXT = {
+  paused: ["Subscription paused", "Your meters are still being recorded, so no data is lost. Access returns as soon as the subscription is renewed."],
+  cancelled: ["Subscription cancelled", "This installation is no longer licensed. Contact Flexpower to reactivate it."],
+  unlicensed: ["Activate Flexpower EMS Kit", "Enter the licence key you received from Flexpower to connect your meters."],
+  invalid: ["Licence problem", "The licence on this PC could not be confirmed."],
+};
+function showLock(lic) {
+  const [title, text] = LOCK_TEXT[lic.status] || LOCK_TEXT.invalid;
+  $("lockTitle").textContent = title; $("lockText").textContent = text;
+  $("lockReason").textContent = lic.reason || ""; $("lockReason").hidden = !lic.reason;
+  const s = lic.support || {};
+  $("lockContact").innerHTML = (s.phone || s.email) ? `<span class="hint">Contact ${esc(s.name || "Flexpower")}</span>`
+    + (s.phone ? `<a href="tel:${esc(s.phone.replace(/\s/g, ""))}">${esc(s.phone)}</a>` : "")
+    + (s.email ? `<a href="mailto:${esc(s.email)}">${esc(s.email)}</a>` : "") : `<span class="hint">Contact Flexpower to restore access.</span>`;
+  const admin = !CFG || CFG.user?.role === "admin";
+  $("lockForm").hidden = !admin;
+  $("lockKey").parentElement.querySelector("label").hidden = lic.status !== "unlicensed" && lic.status !== "invalid" && lic.status !== "cancelled";
+  $("lockKey").hidden = $("lockKey").parentElement.querySelector("label").hidden;
+  $("lockActivate").hidden = $("lockKey").hidden;
+  $("lockNote").textContent = lic.last_error ? `Last check failed: ${lic.last_error}` :
+    lic.last_check ? `Last checked ${new Date(lic.last_check * 1000).toLocaleString()}` : "";
+  $("lock").hidden = false;
+}
+$("lockForm").onsubmit = async (e) => {
+  e.preventDefault(); $("lockMsg").textContent = "Activating…";
+  try { const lic = await post("/api/license/activate", { key: $("lockKey").value });
+    if (lic.usable) location.reload(); else { showLock(lic); $("lockMsg").textContent = ""; } }
+  catch (err) {
+    let msg = err.message.replace(/^\d+ /, "");
+    try { const d = JSON.parse(msg).detail; msg = typeof d === "string" ? d : "Please check the licence key."; } catch {}
+    $("lockMsg").textContent = msg;
+  }
+};
+$("lockCheck").onclick = async () => {
+  $("lockMsg").textContent = "Checking…";
+  try { const lic = await post("/api/license/check"); if (lic.usable) location.reload(); else { showLock(lic); $("lockMsg").textContent = "Still not active."; } }
+  catch (err) { $("lockMsg").textContent = err.message; }
+};
+function renderSubBar(lic) {
+  const bar = $("subBar"); let html = "", cls = "";
+  const info = `<svg class="i"><use href="#i-alert"/></svg>`;
+  if (lic.status === "overdue") { cls = "warn"; html = `${info}<span><b>Payment overdue.</b> ${esc(lic.reason)} Contact ${esc(lic.support?.name || "Flexpower")}${lic.support?.phone ? " on " + esc(lic.support.phone) : ""}.</span>`; }
+  else if (lic.status === "demo") html = `${info}<span><b>Demo mode.</b> Showing simulated meters. Activate a licence to connect real meters.</span>`;
+  else if (lic.max_meters != null && CFG.meters.length > lic.max_meters) { cls = "warn";
+    html = `${info}<span>Your plan includes ${lic.max_meters} meters; ${CFG.meters.length} are configured. Only the first ${lic.max_meters} in config.yaml are recorded.</span>`; }
+  bar.innerHTML = html ? `<div class="${cls}">${html}</div>` : ""; bar.hidden = !html;
+}
+
 /* ============================== start ============================== */
 async function init() {
   CFG = await api("/api/config");
+  if (CFG.license) { if (!CFG.license.usable) { showLock(CFG.license); return; } renderSubBar(CFG.license); }
   $("siteName").textContent = `${CFG.site} · ${CFG.meters.length} meters`;
   document.title = `${CFG.site} – Flexpower EMS Kit`;
   if (CFG.login_required) {

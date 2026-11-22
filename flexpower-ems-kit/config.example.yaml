@@ -18,6 +18,12 @@ tariff:
     end: "20:00"
     weekdays_only: true
 
+# Flexpower subscription. Activate with:  python -m ems activate FLX-XXXX-XXXX-XXXX-XXXX
+# (or on the dashboard's activation screen). Without a licence only simulated
+# meters run (demo mode).
+license:
+  server_url: "https://license.flexpower.example"   # Flexpower's licence server
+
 collector:
   poll_seconds: 60                  # how often every meter is read
   raw_retention_days: 60            # raw readings kept this long; 15-min totals are kept forever

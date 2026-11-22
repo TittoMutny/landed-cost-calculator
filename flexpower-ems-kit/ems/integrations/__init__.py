@@ -104,9 +104,10 @@ def load_plugin_class(cfg: Config, spec: str) -> type[Integration]:
 
 
 class IntegrationManager:
-    def __init__(self, cfg: Config, db: Database):
+    def __init__(self, cfg: Config, db: Database, license=None):
         self.cfg = cfg
         self.db = db
+        self.license = license  # LicenseManager; None = no licence checks (tests)
         self.plugins: list[Integration] = []
         self.errors: list[dict[str, Any]] = []
         self._stop = threading.Event()
@@ -193,6 +194,14 @@ class IntegrationManager:
             self._stop.wait(self.interval)
 
     def publish(self, snap: dict[str, Any]) -> None:
+        if self.license is not None:
+            st = self.license.state()
+            if not st.feature("integrations"):
+                why = ("SCADA / MQTT connections are not included in this plan" if st.usable
+                       else f"Subscription {st.status}: data feed paused")
+                for p in self.plugins:
+                    p.last_error = why
+                return
         with self._publish_lock:  # plugins never see two publishes at once
             for p in self.plugins:
                 if not p.running:

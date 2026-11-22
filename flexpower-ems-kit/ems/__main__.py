@@ -5,6 +5,8 @@
     python -m ems test-meter <meter_id>    read one meter once and print the values
     python -m ems report weekly --html out.html [--send]
     python -m ems hash-password            make a password hash for config.yaml
+    python -m ems activate <KEY>           activate the Flexpower subscription on this PC
+    python -m ems license                  show / refresh the subscription status
     python -m ems set-smtp-password        store the email password encrypted (Windows DPAPI)
     python -m ems set-mqtt-password        store the MQTT broker password encrypted
     python -m ems scada-map                Modbus register map + OPC UA tag list for SCADA/PCS 7
@@ -49,21 +51,27 @@ def cmd_run(args, cfg) -> None:
 
     from .collector import Collector
     from .integrations import IntegrationManager
+    from .licensing import LicenseManager
     from .scheduler import start_scheduler
     from .web import create_app
 
     db = Database(cfg.db_path)
-    collector = Collector(cfg, db)
+    lic = LicenseManager(cfg)
+    lic.start()
+    st = lic.state()
+    log.info("licence: %s %s", st.status, st.reason)
+    collector = Collector(cfg, db, license=lic)
     collector.start()
-    scheduler = start_scheduler(cfg, db)
-    integrations = IntegrationManager(cfg, db)
+    scheduler = start_scheduler(cfg, db, lic)
+    integrations = IntegrationManager(cfg, db, lic)
     integrations.start()
     web = cfg.section("web")
     host, port = args.host or web.get("host", "127.0.0.1"), args.port or int(web.get("port", 8080))
     log.info("dashboard on http://%s:%s", host, port)
     try:
-        uvicorn.run(create_app(cfg, db, integrations), host=host, port=port, log_level="warning")
+        uvicorn.run(create_app(cfg, db, integrations, lic), host=host, port=port, log_level="warning")
     finally:
+        lic.stop()
         integrations.stop()
         scheduler.shutdown(wait=False)
         collector.stop()
@@ -125,7 +133,9 @@ def cmd_report(args, cfg) -> None:
 
     db = Database(cfg.db_path)
     if args.send:
-        print(json.dumps(run_scheduled_report(cfg, db, args.kind, args.to or None), indent=2))
+        from .licensing import LicenseManager
+
+        print(json.dumps(run_scheduled_report(cfg, db, args.kind, args.to or None, license=LicenseManager(cfg)), indent=2))
         return
     report = build_report(cfg, db, args.kind)
     out = Path(args.html or f"{args.kind}-report.html")
@@ -163,6 +173,35 @@ def cmd_profinet_files(args, cfg) -> None:
     print(f"{n} meters, {io_bytes(n)} bytes. Files written to {out}:")
     print("  EMS_DB.awl           STEP 7 / PCS 7 source: UDT + DB matching the input data")
     print("  gateway-settings.txt Modbus read commands and byte offsets for the gateway")
+
+
+def cmd_activate(args, cfg) -> None:
+    from .licensing import LicenseManager
+
+    lic = LicenseManager(cfg)
+    try:
+        st = lic.activate(args.key)
+    except Exception as exc:  # noqa: BLE001
+        sys.exit(f"Activation failed: {exc}")
+    print(f"Activated for {st.customer or 'customer'}: {st.status} {st.reason}".rstrip())
+    print(f"Plan {st.plan}, up to {st.max_meters} meters, paid until {st.paid_until}. Restart the service if it is running.")
+
+
+def cmd_license(args, cfg) -> None:
+    from .licensing import LicenseManager
+
+    lic = LicenseManager(cfg)
+    st = lic.check_now() if lic.key else lic.state()
+    print(f"Status:      {st.status}{' (usable)' if st.usable else ' (locked)'}")
+    if st.reason:
+        print(f"Reason:      {st.reason}")
+    for label, v in (("Customer", st.customer), ("Plan", st.plan), ("Paid until", st.paid_until),
+                     ("Max meters", st.max_meters), ("Features", st.features), ("Licence key", f"...{st.key_hint}" if st.key_hint else ""),
+                     ("Last check", time.strftime("%Y-%m-%d %H:%M", time.localtime(st.last_check)) if st.last_check else ""),
+                     ("Last error", st.last_error)):
+        if v:
+            print(f"{label + ':':<12} {v}")
+    print(f"Server:      {lic.server}")
 
 
 def cmd_hash_password(args, cfg) -> None:
@@ -222,6 +261,9 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("hash-password")
     sub.add_parser("set-smtp-password")
     sub.add_parser("set-mqtt-password")
+    ac = sub.add_parser("activate")
+    ac.add_argument("key", help="licence key from Flexpower, e.g. FLX-ABCD-EFGH-IJKL-MNOP")
+    sub.add_parser("license")
     sm = sub.add_parser("scada-map")
     sm.add_argument("--out", help="CSV file to write (default data/scada-tags.csv)")
     pf = sub.add_parser("profinet-files")
@@ -237,7 +279,7 @@ def main(argv: list[str] | None = None) -> None:
     setup_logging(cfg.base_dir, args.verbose)
     {"run": cmd_run, "seed-demo": cmd_seed_demo, "test-meter": cmd_test_meter,
      "report": cmd_report, "set-smtp-password": cmd_set_smtp_password, "set-mqtt-password": cmd_set_mqtt_password,
-     "scada-map": cmd_scada_map, "profinet-files": cmd_profinet_files}[args.cmd](args, cfg)
+     "scada-map": cmd_scada_map, "activate": cmd_activate, "license": cmd_license, "profinet-files": cmd_profinet_files}[args.cmd](args, cfg)
 
 
 if __name__ == "__main__":

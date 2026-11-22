@@ -43,7 +43,11 @@ class LoginBody(BaseModel):
     password: str = Field(max_length=200)
 
 
-def create_app(cfg: Config, db: Database, integrations=None) -> FastAPI:
+class KeyBody(BaseModel):
+    key: str = Field(min_length=8, max_length=64)
+
+
+def create_app(cfg: Config, db: Database, integrations=None, license=None) -> FastAPI:
     app = FastAPI(title="Flexpower EMS Kit", docs_url=None, redoc_url=None, openapi_url=None)
     web = cfg.section("web")
     users = {u["username"]: u for u in (web.get("users") or []) if u.get("username")}
@@ -200,7 +204,30 @@ def create_app(cfg: Config, db: Database, integrations=None) -> FastAPI:
             "reports": {k: {"enabled": bool(v.get("enabled")), "recipients": len(v.get("recipients") or [])}
                         for k, v in (cfg.section("reports") or {}).items()},
             "email_enabled": bool(cfg.section("email").get("enabled")),
+            "license": license.state().public() if license is not None else None,
         }
+
+    # ------------------------------------------------------------- subscription
+    @app.get("/api/license")
+    def get_license(user: dict = Depends(current_user)):
+        return license.state().public() if license is not None else {"status": "none", "usable": True}
+
+    @app.post("/api/license/activate")
+    def activate_license(body: KeyBody, user: dict = Depends(admin_action)):
+        if license is None:
+            raise HTTPException(400, "Licensing is not enabled")
+        try:
+            st = license.activate(body.key)
+        except Exception as exc:  # noqa: BLE001 - shown to the admin as-is
+            raise HTTPException(400, f"Activation failed: {exc}") from exc
+        log.info("licence activated by %s: %s", user["username"], st.status)
+        return st.public()
+
+    @app.post("/api/license/check")
+    def check_license(user: dict = Depends(admin_action)):
+        if license is None:
+            raise HTTPException(400, "Licensing is not enabled")
+        return license.check_now().public()
 
     @app.get("/api/live")
     def get_live(user: dict = Depends(current_user)):
@@ -299,10 +326,23 @@ def create_app(cfg: Config, db: Database, integrations=None) -> FastAPI:
     @app.post("/api/reports/send")
     def send_report(kind: str = Query(..., pattern="^(daily|weekly|monthly)$"), user: dict = Depends(admin_action)):
         log.info("report %s sent manually by %s", kind, user["username"])
-        return reports.run_scheduled_report(cfg, db, kind)
+        return reports.run_scheduled_report(cfg, db, kind, license=license)
+
+    # Always reachable, whatever the subscription status (sign-in, licence screen, health checks).
+    open_paths = {"/api/health", "/api/config", "/api/login", "/api/logout", "/api/license",
+                  "/api/license/activate", "/api/license/check"}
 
     @app.middleware("http")
     async def security_headers(request, call_next):
+        path = request.url.path
+        if license is not None and path.startswith("/api/") and path not in open_paths:
+            st = license.state()
+            if not st.usable:
+                # 402 Payment Required: the dashboard shows the "subscription paused" screen
+                resp = JSONResponse({"detail": st.reason or f"Subscription {st.status}", "license": st.public()},
+                                    status_code=402)
+                resp.headers["Cache-Control"] = "no-store"
+                return resp
         resp = await call_next(request)
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["X-Frame-Options"] = "SAMEORIGIN"

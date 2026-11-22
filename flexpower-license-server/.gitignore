@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+data/
+license-server.yaml
+.pytest_cache/

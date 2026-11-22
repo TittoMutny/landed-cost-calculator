@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Flexpower Subscriptions</title>
+<style>
+:root { color-scheme: light; --bg:#f2f3f1; --s1:#fdfdfc; --s2:#f1f1ee; --border:#e3e2de; --t1:#0b0b0b; --t2:#52514e; --t3:#7b7a75;
+  --accent:#2a78d6; --accent-soft:#e3effc; --good:#006300; --good-soft:#e4f4e4; --warn:#8a5a00; --warn-soft:#fdf1d8;
+  --bad:#b42727; --bad-soft:#fbe7e7; --shadow:0 1px 2px rgba(20,20,15,.04),0 4px 16px rgba(20,20,15,.05); }
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark; --bg:#0f0f0e; --s1:#1a1a19; --s2:#232321; --border:#2c2c29;
+  --t1:#f0efec; --t2:#c3c2b7; --t3:#8f8e86; --accent:#3987e5; --accent-soft:#1b2c42; --good:#3fc23f; --good-soft:#15291a;
+  --warn:#e0b24a; --warn-soft:#30260f; --bad:#e66767; --bad-soft:#331b1b; --shadow:0 1px 2px rgba(0,0,0,.3); } }
+* { box-sizing: border-box; } [hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--t1); font: 14px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 24px; background: var(--s1); border-bottom: 1px solid var(--border); }
+.logo { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: linear-gradient(135deg,#2a78d6,#6250d6); color: #fff; }
+.logo svg { width: 18px; height: 18px; fill: currentColor; }
+header b { font-size: 15px; } header small { color: var(--t3); display: block; font-size: 12px; }
+header .right { margin-left: auto; display: flex; gap: 8px; align-items: center; color: var(--t2); font-size: 13px; }
+main { max-width: 1300px; margin: 0 auto; padding: 20px 24px 48px; }
+.btn { border: 1px solid var(--border); background: var(--s1); padding: 7px 12px; border-radius: 10px; cursor: pointer; }
+.btn:hover { border-color: var(--t3); } .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { color: var(--bad); } .btn.good { color: var(--good); }
+.card { background: var(--s1); border: 1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat span { color: var(--t3); font-size: 12px; } .stat b { display: block; font-size: 26px; letter-spacing: -.02em; }
+.bar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.bar input { flex: 1 1 260px; max-width: 360px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--s1); }
+.bar select { padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--s1); }
+.bar .btn.primary { margin-left: auto; }
+table { width: 100%; border-collapse: collapse; } th, td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+th { color: var(--t3); font-weight: 500; font-size: 12px; } tbody tr { cursor: pointer; } tbody tr:hover { background: var(--s2); }
+.wrap { overflow-x: auto; }
+.pill { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.pill.active { background: var(--good-soft); color: var(--good); } .pill.overdue { background: var(--warn-soft); color: var(--warn); }
+.pill.paused, .pill.cancelled { background: var(--bad-soft); color: var(--bad); }
+.muted { color: var(--t3); font-size: 12px; }
+.scrim { position: fixed; inset: 0; background: rgba(10,10,8,.4); display: grid; place-items: center; padding: 16px; z-index: 10; }
+.modal { width: min(560px, 100%); max-height: 92vh; overflow-y: auto; background: var(--s1); border-radius: 16px; padding: 22px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+.modal h2 { margin: 0 0 4px; font-size: 18px; } .modal .sub { color: var(--t3); font-size: 13px; margin: 0 0 14px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+label { display: grid; gap: 4px; font-size: 12px; color: var(--t2); } label.full { grid-column: 1 / -1; }
+label input, label select, label textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); }
+.checks { display: flex; gap: 16px; } .checks label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--t1); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.section h3 { margin: 0 0 8px; font-size: 13px; color: var(--t2); }
+.kv { display: grid; grid-template-columns: 130px 1fr; gap: 6px 10px; font-size: 13px; } .kv span:nth-child(odd) { color: var(--t3); }
+.key { font-family: Consolas, ui-monospace, monospace; font-size: 18px; letter-spacing: .04em; padding: 12px; border-radius: 10px; background: var(--s2); text-align: center; user-select: all; }
+.banner { padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-top: 10px; }
+.banner.paused, .banner.cancelled { background: var(--bad-soft); color: var(--bad); } .banner.overdue { background: var(--warn-soft); color: var(--warn); }
+.ev { font-size: 12px; display: grid; grid-template-columns: 120px 90px 1fr; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--border); }
+#login { max-width: 360px; margin: 12vh auto; }
+#login h1 { font-size: 20px; margin: 10px 0 4px; } #login form { display: grid; gap: 10px; margin-top: 14px; }
+#login input { padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); }
+.err { color: var(--bad); font-size: 13px; min-height: 1.2em; }
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--t1); color: var(--s1); padding: 10px 16px; border-radius: 10px; display: none; z-index: 20; }
+@media (max-width: 760px) { .stats { grid-template-columns: repeat(2, 1fr); } main, header { padding-left: 16px; padding-right: 16px; } .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div id="login" class="card" hidden>
+  <div class="logo"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></div>
+  <h1>Flexpower Subscriptions</h1><div class="muted">Staff sign-in</div>
+  <form id="loginForm"><input id="lu" placeholder="Username" autocomplete="username" required>
+    <input id="lp" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="btn primary">Sign in</button><div class="err" id="lerr"></div></form>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg></div>
+    <div><b>Flexpower Subscriptions</b><small>EMS Kit licence server</small></div>
+    <div class="right"><span id="who"></span><button class="btn" id="logout">Sign out</button></div>
+  </header>
+  <main>
+    <div class="stats">
+      <div class="card stat"><span>Customers</span><b id="nAll">0</b></div>
+      <div class="card stat"><span>Active</span><b id="nActive">0</b></div>
+      <div class="card stat"><span>Overdue (still running)</span><b id="nOverdue">0</b></div>
+      <div class="card stat"><span>Paused / cancelled</span><b id="nPaused">0</b></div>
+    </div>
+    <div class="card">
+      <div class="bar">
+        <input id="q" placeholder="Search name, email, phone, PC…" aria-label="Search">
+        <select id="fStatus" aria-label="Filter"><option value="">All statuses</option><option>active</option><option>overdue</option><option>paused</option><option>cancelled</option></select>
+        <button class="btn primary" id="newBtn">+ New customer</button>
+      </div>
+      <div class="wrap"><table><thead><tr><th>Customer</th><th>Plan</th><th>Status</th><th>Paid until</th><th>Meters</th><th>PC</th><th>Last check-in</th></tr></thead><tbody id="rows"></tbody></table></div>
+    </div>
+  </main>
+</div>
+<div id="modal" class="scrim" hidden><div class="modal" id="modalBody"></div></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let ME = null, CUSTOMERS = [];
+function toast(m) { const t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3500); }
+async function api(path, method = "GET", body) {
+  const r = await fetch(path, { method, credentials: "same-origin", headers: { "Content-Type": "application/json", ...(ME ? { "X-CSRF-Token": ME.csrf } : {}) },
+    body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { showLogin(); throw new Error("Login required"); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof j.detail === "string" ? j.detail : `Error ${r.status}`);
+  return j;
+}
+const ago = (ts) => { if (!ts) return "never"; const s = Date.now() / 1000 - ts;
+  return s < 120 ? "just now" : s < 7200 ? `${Math.round(s / 60)} min ago` : s < 172800 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`; };
+const fmtTs = (ts) => ts ? new Date(ts * 1000).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–";
+
+function showLogin() { $("app").hidden = true; $("login").hidden = false; ME = null; }
+$("loginForm").onsubmit = async (e) => { e.preventDefault(); $("lerr").textContent = "";
+  try { await api("/admin/api/login", "POST", { username: $("lu").value, password: $("lp").value }); $("lp").value = ""; await start(); }
+  catch (err) { $("lerr").textContent = err.message; } };
+$("logout").onclick = async () => { await api("/admin/api/logout", "POST").catch(() => {}); showLogin(); };
+
+async function start() {
+  ME = await api("/admin/api/me");
+  $("login").hidden = true; $("app").hidden = false; $("who").textContent = ME.username;
+  await load();
+}
+async function load() { CUSTOMERS = await api("/admin/api/customers"); render(); }
+function render() {
+  const q = $("q").value.toLowerCase(), f = $("fStatus").value;
+  const n = (s) => CUSTOMERS.filter(c => s.includes(c.effective)).length;
+  $("nAll").textContent = CUSTOMERS.length; $("nActive").textContent = n(["active"]); $("nOverdue").textContent = n(["overdue"]); $("nPaused").textContent = n(["paused", "cancelled"]);
+  const rows = CUSTOMERS.filter(c => (!f || c.effective === f) && (!q || [c.name, c.email, c.phone, c.hostname, c.key_hint].join(" ").toLowerCase().includes(q)));
+  $("rows").innerHTML = rows.map(c => `<tr data-id="${c.id}"><td><b>${esc(c.name)}</b><div class="muted">${esc(c.email || c.phone || "")}</div></td>
+    <td>${esc(c.plan)}<div class="muted">up to ${c.max_meters} meters</div></td><td><span class="pill ${c.effective}">${c.effective}</span></td>
+    <td>${esc(c.paid_until)}</td><td>${c.meters_count ?? "–"}</td><td>${esc(c.hostname || (c.machine_id ? "activated" : "not activated"))}</td><td>${ago(c.last_seen)}</td></tr>`).join("")
+    || `<tr><td colspan="7" class="muted" style="cursor:default">No customers yet. Click “New customer”.</td></tr>`;
+  document.querySelectorAll("#rows tr[data-id]").forEach(tr => tr.onclick = () => openCustomer(+tr.dataset.id));
+}
+$("q").oninput = render; $("fStatus").onchange = render;
+
+function modal(html) { $("modalBody").innerHTML = html; $("modal").hidden = false; }
+function closeModal() { $("modal").hidden = true; }
+$("modal").onclick = (e) => { if (e.target === $("modal")) closeModal(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+function planOptions(sel) { return Object.keys(ME.plans).map(p => `<option ${p === sel ? "selected" : ""}>${esc(p)}</option>`).join(""); }
+function featureChecks(f) { return `<div class="checks"><label><input type="checkbox" name="reports" ${f.reports ? "checked" : ""}>Email reports</label>
+  <label><input type="checkbox" name="integrations" ${f.integrations ? "checked" : ""}>SCADA / MQTT connections</label></div>`; }
+
+$("newBtn").onclick = () => {
+  const def = new Date(Date.now() + 30 * 86400e3).toISOString().slice(0, 10), p = Object.keys(ME.plans)[0];
+  modal(`<h2>New customer</h2><p class="sub">A licence key is generated and shown once.</p>
+  <form id="nf"><div class="grid2">
+    <label class="full">Company name<input name="name" required></label>
+    <label>Email<input name="email" type="email"></label><label>Phone<input name="phone"></label>
+    <label>Plan<select name="plan">${planOptions(p)}</select></label><label>Max meters (blank = plan default)<input name="max_meters" type="number" min="1"></label>
+    <label>Paid until<input name="paid_until" type="date" value="${def}"></label><label>Grace days after due date<input name="grace_days" type="number" min="0" max="90" value="7"></label>
+    <label class="full">Notes<textarea name="notes" rows="2"></textarea></label></div>
+    <div class="actions"><button class="btn primary">Create &amp; generate key</button><button type="button" class="btn" id="cx">Cancel</button></div></form>`);
+  $("cx").onclick = closeModal;
+  $("nf").onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    f.max_meters = f.max_meters ? +f.max_meters : null; f.grace_days = +f.grace_days;
+    try { const c = await api("/admin/api/customers", "POST", f); await load(); showKey(c); } catch (err) { toast(err.message); } };
+};
+
+function showKey(c) {
+  modal(`<h2>Licence key for ${esc(c.name)}</h2><p class="sub">Copy it now: only a fingerprint is stored, so it can't be shown again.</p>
+  <div class="key" id="keyBox">${esc(c.license_key)}</div>
+  <p class="muted">On the customer's PC: Flexpower EMS Kit → enter the key on the activation screen, or run <code>python -m ems activate ${esc(c.license_key)}</code></p>
+  <div class="actions"><button class="btn primary" id="copy">Copy key</button><button class="btn" id="done">Done</button></div>`);
+  $("copy").onclick = async () => { try { await navigator.clipboard.writeText(c.license_key); toast("Copied"); } catch { toast("Select the key and copy it manually"); } };
+  $("done").onclick = () => openCustomer(c.id);
+}
+
+async function openCustomer(id) {
+  const c = await api(`/admin/api/customers/${id}`);
+  const banner = c.effective !== "active" ? `<div class="banner ${c.effective}">${esc(c.effective_reason)}</div>` : "";
+  modal(`<h2>${esc(c.name)} <span class="pill ${c.effective}">${c.effective}</span></h2>
+  <p class="sub">Key …${esc(c.key_hint)} · plan ${esc(c.plan)} · paid until <b>${esc(c.paid_until)}</b>${c.pause_on ? ` · pauses on ${esc(c.pause_on)} if unpaid` : ""}</p>${banner}
+  <div class="actions">
+    <button class="btn primary" id="aPay">Record payment</button>
+    ${c.status === "paused" ? `<button class="btn good" id="aResume">Resume</button>` : c.status !== "cancelled" ? `<button class="btn danger" id="aPause">Pause now</button>` : `<button class="btn good" id="aResume">Reactivate</button>`}
+    ${c.status !== "cancelled" ? `<button class="btn danger" id="aCancel">Cancel subscription</button>` : ""}
+  </div>
+  <div class="section"><h3>Installation</h3><div class="kv">
+    <span>PC</span><span>${esc(c.hostname || "–")} ${c.machine_id ? "" : '<span class="muted">(not activated yet)</span>'}</span>
+    <span>Activated</span><span>${fmtTs(c.activated_at)}</span><span>Last check-in</span><span>${ago(c.last_seen)} ${c.last_ip ? "from " + esc(c.last_ip) : ""}</span>
+    <span>App version</span><span>${esc(c.app_version || "–")}</span><span>Meters in use</span><span>${c.meters_count ?? "–"} of ${c.max_meters}</span></div>
+    <div class="actions"><button class="btn" id="aReset">Move to another PC (reset activation)</button><button class="btn" id="aKey">Issue new key</button></div></div>
+  <div class="section"><h3>Subscription details</h3><form id="ef"><div class="grid2">
+    <label class="full">Company name<input name="name" value="${esc(c.name)}" required></label>
+    <label>Email<input name="email" type="email" value="${esc(c.email)}"></label><label>Phone<input name="phone" value="${esc(c.phone)}"></label>
+    <label>Plan<select name="plan">${planOptions(c.plan)}</select></label><label>Max meters<input name="max_meters" type="number" min="1" value="${c.max_meters}"></label>
+    <label>Paid until<input name="paid_until" type="date" value="${esc(c.paid_until)}"></label><label>Grace days<input name="grace_days" type="number" min="0" max="90" value="${c.grace_days}"></label>
+    <label class="full">Features${featureChecks(c.features)}</label>
+    <label class="full">Notes<textarea name="notes" rows="2">${esc(c.notes)}</textarea></label></div>
+    <div class="actions"><button class="btn">Save changes</button></div></form></div>
+  <div class="section"><h3>History</h3>${c.events.map(e => `<div class="ev"><span>${fmtTs(e.ts)}</span><b>${esc(e.action)}</b><span>${esc(e.detail)} <span class="muted">· ${esc(e.actor)}</span></span></div>`).join("") || '<p class="muted">No events.</p>'}</div>`);
+
+  const act = async (path, body, msg) => { try { await api(`/admin/api/customers/${id}/${path}`, "POST", body); toast(msg); await load(); openCustomer(id); } catch (err) { toast(err.message); } };
+  $("aPay").onclick = () => {
+    modal(`<h2>Record payment, ${esc(c.name)}</h2><p class="sub">Extends “paid until” from ${esc(c.paid_until > new Date().toISOString().slice(0, 10) ? c.paid_until : "today")}. Lifts a pause automatically.</p>
+    <form id="pf"><div class="grid2"><label>Months paid<input name="months" type="number" min="1" max="60" value="1" required></label>
+    <label>Amount<input name="amount" placeholder="e.g. KES 15,000"></label><label class="full">Reference (M-Pesa code, invoice no.)<input name="reference"></label></div>
+    <div class="actions"><button class="btn primary">Save payment</button><button type="button" class="btn" id="cx">Back</button></div></form>`);
+    $("cx").onclick = () => openCustomer(id);
+    $("pf").onsubmit = (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); f.months = +f.months; act("payment", f, "Payment recorded"); };
+  };
+  if ($("aPause")) $("aPause").onclick = () => { const reason = prompt("Reason shown to the customer:", "Subscription paused for non-payment. Please contact Flexpower.");
+    if (reason !== null) act("pause", { reason }, "Paused. The site locks at its next check-in (within a few hours)."); };
+  if ($("aResume")) $("aResume").onclick = () => act("resume", null, "Resumed. The site unlocks at its next check-in, or when someone clicks 'Check again'.");
+  if ($("aCancel")) $("aCancel").onclick = () => { if (confirm(`Cancel ${c.name}'s subscription? The app will lock and stop collecting new data.`)) act("cancel", null, "Cancelled"); };
+  $("aReset").onclick = () => { if (confirm("Allow this key to be activated on a different PC? The current PC will stop working at its next check-in.")) act("reset-activation", null, "Activation reset"); };
+  $("aKey").onclick = async () => { if (!confirm("Issue a new key? The old key stops working immediately.")) return;
+    try { const r = await api(`/admin/api/customers/${id}/new-key`, "POST"); await load(); showKey(r); } catch (err) { toast(err.message); } };
+  $("ef").onsubmit = async (e) => { e.preventDefault(); const fd = new FormData(e.target), f = Object.fromEntries(fd);
+    f.max_meters = +f.max_meters; f.grace_days = +f.grace_days; f.features = { reports: fd.has("reports"), integrations: fd.has("integrations") };
+    try { await api(`/admin/api/customers/${id}`, "PATCH", f); toast("Saved"); await load(); openCustomer(id); } catch (err) { toast(err.message); } };
+}
+
+start().catch(() => showLogin());
+</script>
+</body>
+</html>

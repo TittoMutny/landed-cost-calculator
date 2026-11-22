@@ -422,6 +422,45 @@ class MyHistorian(Integration):
 A plugin that fails to load or start is reported in the dashboard and the log.
 It never stops metering.
 
+## Subscription (Flexpower licence)
+
+Flexpower EMS Kit is sold as a subscription. Each installation checks in with the
+**Flexpower licence server** (see `../flexpower-license-server/`) every few hours.
+
+**Activating a new site:** Flexpower gives the customer a key like
+`FLX-ABCD-EFGH-IJKL-MNOP`. Enter it on the dashboard's activation screen, or run:
+
+```powershell
+.\.venv\Scripts\python.exe -m ems activate FLX-ABCD-EFGH-IJKL-MNOP
+.\.venv\Scripts\python.exe -m ems license        # show / refresh the status
+```
+
+The key is tied to that PC. To move to a new PC, Flexpower clicks *Move to another PC*
+in the admin panel.
+
+| Status | What the customer sees |
+|---|---|
+| **active** | Everything works |
+| **overdue** | Everything works, with a payment-reminder banner showing the date access will pause |
+| **paused** | Dashboard, email reports and SCADA / MQTT feeds lock, and a screen shows the reason and Flexpower's contact details. **Meters keep recording**, so nothing is lost and everything returns as soon as the subscription is renewed |
+| **cancelled** | Locked, and real meters are no longer recorded |
+| **demo** | No key and only simulated meters: fully usable for sales demos |
+
+- **Plans** set a meter limit and features. If more meters are configured than the
+  plan allows, only the first ones in `config.yaml` are recorded, and the dashboard says so.
+  Email reports and SCADA/MQTT connections can be switched on or off per customer.
+- **Offline sites:** the last answer from the server stays valid for up to 7 days
+  without internet, but never beyond the date the site would be paused for non-payment.
+- **Tamper resistance:** every answer is signed with Flexpower's private key, and the
+  app only accepts answers it can verify with the public key built into it. Editing
+  `data\license.json`, blocking the server, pointing `server_url` at another server or
+  setting the clock back doesn't unlock anything. The app is Python source, though,
+  so a determined developer could edit the code itself. For stronger protection,
+  ship a compiled build (e.g. Nuitka) and rely on the subscription contract.
+
+Before the first release, embed Flexpower's public key once (done by the licence
+server's `init --ems` command, see its README). Until then the app only runs in demo mode.
+
 ## Backups
 
 Everything is in `data\ems.sqlite3` plus your `config.yaml`. Copy both to a

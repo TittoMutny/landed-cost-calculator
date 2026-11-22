@@ -201,7 +201,15 @@ def send_email(cfg: Config, recipients: list[str], subject: str, html: str,
         smtp.send_message(msg)
 
 
-def run_scheduled_report(cfg: Config, db: Database, kind: str, recipients: list[str] | None = None) -> dict[str, Any]:
+def run_scheduled_report(cfg: Config, db: Database, kind: str, recipients: list[str] | None = None,
+                         license=None) -> dict[str, Any]:
+    if license is not None:
+        st = license.state()
+        if not st.feature("reports"):
+            why = "email reports are not included in this plan" if st.usable else f"subscription {st.status}"
+            db.log_report(int(time.time()), kind, 0, 0, "", "skipped", why)
+            log.info("%s report skipped: %s", kind, why)
+            return {"status": "skipped", "reason": why}
     rcfg = cfg.section("reports").get(kind) or {}
     recipients = recipients or list(rcfg.get("recipients") or [])
     report = build_report(cfg, db, kind)

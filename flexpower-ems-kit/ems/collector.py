@@ -153,10 +153,12 @@ class Collector:
     """One thread per connection (TCP endpoint, serial port, or the simulator).
     Meters sharing an RS-485 bus are polled one after another on that thread."""
 
-    def __init__(self, cfg: Config, db: Database, on_reading: Callable[[str, dict], None] | None = None):
+    def __init__(self, cfg: Config, db: Database, on_reading: Callable[[str, dict], None] | None = None,
+                 license=None):
         self.cfg = cfg
         self.db = db
         self.on_reading = on_reading
+        self.license = license  # LicenseManager; None = no licence checks (tests)
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
         self.simulator = Simulator(cfg, db)
@@ -196,6 +198,11 @@ class Collector:
 
     def poll_once(self, meters: list[Meter], client=None) -> None:
         now = time.time()
+        if self.license is not None:  # plan meter limit; nothing at all when cancelled / unlicensed
+            allowed = self.license.allowed_meter_ids()
+            meters = [m for m in meters if m.id in allowed]
+            if not meters:
+                return
         if meters and meters[0].protocol == "simulated":
             for mid, values in self.simulator.read(meters, now).items():
                 self._store(mid, int(now), values)

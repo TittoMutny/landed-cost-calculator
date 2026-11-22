@@ -1,0 +1,36 @@
+# Flexpower licence server configuration. Copy to license-server.yaml.
+
+database: data/licenses.sqlite3
+signing_key: data/signing_key.pem   # created by `python -m license_server init`. Back it up, never share it.
+
+# Admins for the /admin panel. Create a hash with: python -m license_server hash-password
+admins:
+  # - username: admin
+  #   password_hash: "pbkdf2_sha256$..."
+
+# How long an installation keeps working without reaching this server
+# (internet outage). It never extends past the date a customer would be paused.
+offline_days: 7
+# How often installations check in.
+check_hours: 6
+
+# Shown to customers on the "subscription paused" screen.
+support:
+  name: "Flexpower"
+  phone: "+254 700 000 000"
+  email: "billing@flexpower.example"
+
+# Plans: default meter limit and features. Each customer can be adjusted individually.
+plans:
+  basic:
+    max_meters: 10
+    features: {reports: true, integrations: false}
+  pro:
+    max_meters: 50
+    features: {reports: true, integrations: true}
+  enterprise:
+    max_meters: 500
+    features: {reports: true, integrations: true}
+
+secure_cookies: auto              # HTTPS-only admin cookie when served over HTTPS
+trust_cf_connecting_ip: true      # behind cloudflared: use the visitor's real IP for rate limits

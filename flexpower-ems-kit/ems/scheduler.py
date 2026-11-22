@@ -14,7 +14,7 @@ from .reports import run_scheduled_report
 log = logging.getLogger("ems.scheduler")
 
 
-def start_scheduler(cfg: Config, db: Database) -> BackgroundScheduler:
+def start_scheduler(cfg: Config, db: Database, license=None) -> BackgroundScheduler:
     sched = BackgroundScheduler(timezone=cfg.tz)
     reports = cfg.section("reports")
 
@@ -28,7 +28,7 @@ def start_scheduler(cfg: Config, db: Database) -> BackgroundScheduler:
             trig["day_of_week"] = rc.get("day_of_week", "mon")
         elif kind == "monthly":
             trig["day"] = int(rc.get("day_of_month", 1))
-        sched.add_job(run_scheduled_report, CronTrigger(timezone=cfg.tz, **trig), args=[cfg, db, kind],
+        sched.add_job(run_scheduled_report, CronTrigger(timezone=cfg.tz, **trig), args=[cfg, db, kind, None, license],
                       id=f"report_{kind}", misfire_grace_time=6 * 3600, coalesce=True)
         log.info("%s report scheduled (%s)", kind, trig)
 
